@@ -2429,7 +2429,7 @@ function renderPortfolioSectionHTML(){
         <td class="pf-symbol inline-edit" data-key="${e.key}" data-field="symbol" data-colorable="1" ${ce()} ${colorStyleAttr(e,'symbol')} title="Symbole Yahoo Finance (ex. AAPL, VIV.PA) — alimente l'actualisation auto ET la courbe 📈">${escapeHtml(e.symbol||'')}</td>
         <td class="num ${pctClass(e.depuis||0)} inline-edit" data-key="${e.key}" data-field="depuis" data-type="number" data-colorize="1" data-colorable="1" data-colorable-fallback="${signHex(e.depuis||0)}" ${ce()} ${colorStyleAttr(e,'depuis')}>${fmtPct(e.depuis||0)}</td>
         <td class="num ${pctClass(e.ytd||0)} inline-edit" data-key="${e.key}" data-field="ytd" data-type="number" data-colorize="1" data-colorable="1" data-colorable-fallback="${signHex(e.ytd||0)}" ${ce()} ${colorStyleAttr(e,'ytd')}>${fmtPct(e.ytd||0)}</td>
-        <td class="del-btn" data-del-portfolio="${e.key}">${state.isEditing?'✕':''}</td>
+        ${state.isEditing ? `<td class="del-btn" data-del-portfolio="${e.key}">✕</td>` : `<td></td>`}
       </tr>`;
     });
     html += `</tbody></table>`;
