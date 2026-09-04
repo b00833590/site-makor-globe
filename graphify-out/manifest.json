@@ -1,0 +1,457 @@
+{
+  ".claude/launch.json": {
+    "mtime": 1784588337.7193372,
+    "ast_hash": "998bbe65f53e6dcca6d595f93fcc8a7b",
+    "semantic_hash": "998bbe65f53e6dcca6d595f93fcc8a7b"
+  },
+  "js/app.js": {
+    "mtime": 1784288681.2198186,
+    "ast_hash": "3a04d163e9e24e181fda80df18395a31",
+    "semantic_hash": "3a04d163e9e24e181fda80df18395a31"
+  },
+  "js/config.js": {
+    "mtime": 1784288681.1284218,
+    "ast_hash": "bffcfd0a493befbd1649b923fdd2bbcb",
+    "semantic_hash": "bffcfd0a493befbd1649b923fdd2bbcb"
+  },
+  "js/features/actions.js": {
+    "mtime": 1784288681.1658294,
+    "ast_hash": "b4268caa00fa61e1f77ce12c48fed050",
+    "semantic_hash": "b4268caa00fa61e1f77ce12c48fed050"
+  },
+  "js/features/auth.js": {
+    "mtime": 1784288681.1728323,
+    "ast_hash": "1c68218877b539ac613dcbcf6f077daa",
+    "semantic_hash": "1c68218877b539ac613dcbcf6f077daa"
+  },
+  "js/features/charts.js": {
+    "mtime": 1784288681.1688235,
+    "ast_hash": "185ccb668b62141d428b6584ea6b6beb",
+    "semantic_hash": "185ccb668b62141d428b6584ea6b6beb"
+  },
+  "js/features/search.js": {
+    "mtime": 1784288681.1598263,
+    "ast_hash": "68b329da9893e34099c7d8ad5cb9c940",
+    "semantic_hash": "68b329da9893e34099c7d8ad5cb9c940"
+  },
+  "js/seeds.js": {
+    "mtime": 1784288681.2148216,
+    "ast_hash": "654c888bb0306f7413162b385c9d0208",
+    "semantic_hash": "654c888bb0306f7413162b385c9d0208"
+  },
+  "js/storage.js": {
+    "mtime": 1784288681.1403852,
+    "ast_hash": "c543430a4a6cd1d634a39bdfc090f118",
+    "semantic_hash": "c543430a4a6cd1d634a39bdfc090f118"
+  },
+  "js/views/companies.js": {
+    "mtime": 1784288681.1517951,
+    "ast_hash": "d612a8295fdaeb5a9280d29a7ebd117e",
+    "semantic_hash": "d612a8295fdaeb5a9280d29a7ebd117e"
+  },
+  "js/views/content.js": {
+    "mtime": 1784288681.1557877,
+    "ast_hash": "a98cba01b129079fda4073a80a1ff220",
+    "semantic_hash": "a98cba01b129079fda4073a80a1ff220"
+  },
+  "js/views/market.js": {
+    "mtime": 1784288681.1482427,
+    "ast_hash": "8111001ae15f55d4706c2978884cf4b1",
+    "semantic_hash": "8111001ae15f55d4706c2978884cf4b1"
+  },
+  "js/views/shared.js": {
+    "mtime": 1784288681.14494,
+    "ast_hash": "312c39d4b524f16301ec73ec1b883124",
+    "semantic_hash": "312c39d4b524f16301ec73ec1b883124"
+  },
+  "webapp/package.json": {
+    "mtime": 1784586541.3403502,
+    "ast_hash": "0be7662c2e378bd9a1c4a8977a3ca87c",
+    "semantic_hash": "0be7662c2e378bd9a1c4a8977a3ca87c"
+  },
+  "webapp/src/admin/config.js": {
+    "mtime": 1784533264.7905574,
+    "ast_hash": "1bf0cfb6cb3e99e6ec42d758972bc70c",
+    "semantic_hash": "1bf0cfb6cb3e99e6ec42d758972bc70c"
+  },
+  "webapp/src/admin/editableInput.js": {
+    "mtime": 1784539861.381399,
+    "ast_hash": "62905972fc3254a9bc44f69f5104eaba",
+    "semantic_hash": "62905972fc3254a9bc44f69f5104eaba"
+  },
+  "webapp/src/admin/editableInput.test.js": {
+    "mtime": 1784539861.3843963,
+    "ast_hash": "be80e3603a1fbaa6eb79f557f7bb1337",
+    "semantic_hash": "be80e3603a1fbaa6eb79f557f7bb1337"
+  },
+  "webapp/src/admin/passwordModal.js": {
+    "mtime": 1784533264.7925086,
+    "ast_hash": "61d63493515332552f0e19ce22fdfa37",
+    "semantic_hash": "61d63493515332552f0e19ce22fdfa37"
+  },
+  "webapp/src/admin/passwordModal.test.js": {
+    "mtime": 1784533264.7973282,
+    "ast_hash": "c9c0924a9501edecc362e5547898376e",
+    "semantic_hash": "c9c0924a9501edecc362e5547898376e"
+  },
+  "webapp/src/admin/toast.js": {
+    "mtime": 1784533264.7998028,
+    "ast_hash": "c5dccf53bb9262eebec24b6d8795c84d",
+    "semantic_hash": "c5dccf53bb9262eebec24b6d8795c84d"
+  },
+  "webapp/src/admin/toast.test.js": {
+    "mtime": 1784533264.800827,
+    "ast_hash": "e2241f36938ac4f35df22d0b2474919f",
+    "semantic_hash": "e2241f36938ac4f35df22d0b2474919f"
+  },
+  "webapp/src/admin/uid.js": {
+    "mtime": 1784533264.802287,
+    "ast_hash": "4c1368b715af48026d1a045cbb03b267",
+    "semantic_hash": "4c1368b715af48026d1a045cbb03b267"
+  },
+  "webapp/src/admin/uid.test.js": {
+    "mtime": 1784533264.8042872,
+    "ast_hash": "6708c2042d450d9fe63762941e5a8fcf",
+    "semantic_hash": "6708c2042d450d9fe63762941e5a8fcf"
+  },
+  "webapp/src/data/dateUtils.js": {
+    "mtime": 1784450899.7142591,
+    "ast_hash": "24aa0588edfb64945b9187b69f2bcf0b",
+    "semantic_hash": "24aa0588edfb64945b9187b69f2bcf0b"
+  },
+  "webapp/src/data/dateUtils.test.js": {
+    "mtime": 1784450899.7203126,
+    "ast_hash": "c011109b3169b346bec3a4e1013994a9",
+    "semantic_hash": "c011109b3169b346bec3a4e1013994a9"
+  },
+  "webapp/src/data/firestoreClient.js": {
+    "mtime": 1784582677.1704915,
+    "ast_hash": "3a87e2bcebd285790b21ad7cd5344e8c",
+    "semantic_hash": "3a87e2bcebd285790b21ad7cd5344e8c"
+  },
+  "webapp/src/data/firestoreClient.test.js": {
+    "mtime": 1784533264.8104396,
+    "ast_hash": "46300826e616123bc3539f15d96bf22f",
+    "semantic_hash": "46300826e616123bc3539f15d96bf22f"
+  },
+  "webapp/src/data/portfolioLiveQuotes.js": {
+    "mtime": 1784450899.7203126,
+    "ast_hash": "bff96889e4f1787600b64e3c8eb38df5",
+    "semantic_hash": "bff96889e4f1787600b64e3c8eb38df5"
+  },
+  "webapp/src/data/portfolioLiveQuotes.test.js": {
+    "mtime": 1784450899.7203126,
+    "ast_hash": "7676fd2da0b65d5bb5b7f2da07b5d3a6",
+    "semantic_hash": "7676fd2da0b65d5bb5b7f2da07b5d3a6"
+  },
+  "webapp/src/data/portfolioSelectors.js": {
+    "mtime": 1784551750.4517663,
+    "ast_hash": "4101476537d63645fe071c3b9cbf45f1",
+    "semantic_hash": "4101476537d63645fe071c3b9cbf45f1"
+  },
+  "webapp/src/data/portfolioSelectors.test.js": {
+    "mtime": 1784409915.161004,
+    "ast_hash": "178c53d1776551a147d8685f06b99614",
+    "semantic_hash": "178c53d1776551a147d8685f06b99614"
+  },
+  "webapp/src/data/quoteClient.js": {
+    "mtime": 1784450899.7203126,
+    "ast_hash": "8d5d10ccb75c2b7e8bfab4ac2420e7b3",
+    "semantic_hash": "8d5d10ccb75c2b7e8bfab4ac2420e7b3"
+  },
+  "webapp/src/data/quoteClient.test.js": {
+    "mtime": 1784450899.727848,
+    "ast_hash": "417463a136908ab3ad086f52b985a02a",
+    "semantic_hash": "417463a136908ab3ad086f52b985a02a"
+  },
+  "webapp/src/data/regionMatch.js": {
+    "mtime": 1784401315.533145,
+    "ast_hash": "8d6de0adf64c1e67713f6c40a76db521",
+    "semantic_hash": "8d6de0adf64c1e67713f6c40a76db521"
+  },
+  "webapp/src/data/regionMatch.test.js": {
+    "mtime": 1784401315.534135,
+    "ast_hash": "796da43c9fcd96ca74338da8eaeebacb",
+    "semantic_hash": "796da43c9fcd96ca74338da8eaeebacb"
+  },
+  "webapp/src/data/selectors.js": {
+    "mtime": 1784612936.53408,
+    "ast_hash": "4aaf200e3b49cdd56099662910a99c9f",
+    "semantic_hash": "4aaf200e3b49cdd56099662910a99c9f"
+  },
+  "webapp/src/data/selectors.test.js": {
+    "mtime": 1784612936.53408,
+    "ast_hash": "d3e99159ed1840413f23519173262286",
+    "semantic_hash": "d3e99159ed1840413f23519173262286"
+  },
+  "webapp/src/globe/camera.js": {
+    "mtime": 1784389159.785181,
+    "ast_hash": "67b57c89fa99cbd7d149e351ccd202a7",
+    "semantic_hash": "67b57c89fa99cbd7d149e351ccd202a7"
+  },
+  "webapp/src/globe/camera.test.js": {
+    "mtime": 1784389159.7915015,
+    "ast_hash": "b12393c2b621efd3831ebbcf2cedc24c",
+    "semantic_hash": "b12393c2b621efd3831ebbcf2cedc24c"
+  },
+  "webapp/src/globe/cycle.js": {
+    "mtime": 1784389159.7915015,
+    "ast_hash": "93a808dc2ded91f9ff3e0f40dd551361",
+    "semantic_hash": "93a808dc2ded91f9ff3e0f40dd551361"
+  },
+  "webapp/src/globe/cycle.test.js": {
+    "mtime": 1784389159.7915015,
+    "ast_hash": "3729309de3a09621e39c0ee87b1691e4",
+    "semantic_hash": "3729309de3a09621e39c0ee87b1691e4"
+  },
+  "webapp/src/globe/globeScene.js": {
+    "mtime": 1784389159.7997632,
+    "ast_hash": "423508393f22e7bdfcfe92a1945fbed9",
+    "semantic_hash": "423508393f22e7bdfcfe92a1945fbed9"
+  },
+  "webapp/src/globe/regions.js": {
+    "mtime": 1784389159.7997632,
+    "ast_hash": "64be518197d193c9ac92e2986aef957d",
+    "semantic_hash": "64be518197d193c9ac92e2986aef957d"
+  },
+  "webapp/src/globe/regions.test.js": {
+    "mtime": 1784389159.7997632,
+    "ast_hash": "37d42312b1b7ae2f5b81c9ec322d18b3",
+    "semantic_hash": "37d42312b1b7ae2f5b81c9ec322d18b3"
+  },
+  "webapp/src/main.js": {
+    "mtime": 1784612936.53408,
+    "ast_hash": "a204146bb86ef4120261c01b649c2c2a",
+    "semantic_hash": "a204146bb86ef4120261c01b649c2c2a"
+  },
+  "webapp/src/panel/chartModal.js": {
+    "mtime": 1784448239.3152041,
+    "ast_hash": "1e9e48b225cd33faf66d122e0de450ec",
+    "semantic_hash": "1e9e48b225cd33faf66d122e0de450ec"
+  },
+  "webapp/src/panel/chartModal.test.js": {
+    "mtime": 1784448239.31712,
+    "ast_hash": "c5f5e7cfcdeaf2aa58a8de16f5d8d37f",
+    "semantic_hash": "c5f5e7cfcdeaf2aa58a8de16f5d8d37f"
+  },
+  "webapp/src/panel/companyChart.js": {
+    "mtime": 1784450899.736839,
+    "ast_hash": "4902920dc10377c80ee114b6b6d67005",
+    "semantic_hash": "4902920dc10377c80ee114b6b6d67005"
+  },
+  "webapp/src/panel/companyChart.test.js": {
+    "mtime": 1784448239.3206313,
+    "ast_hash": "d9b8cae041a2c3cc676fcf141e9506f6",
+    "semantic_hash": "d9b8cae041a2c3cc676fcf141e9506f6"
+  },
+  "webapp/src/panel/companyList.js": {
+    "mtime": 1784539861.405483,
+    "ast_hash": "648571e4243045aeb153dbb7d1ad2062",
+    "semantic_hash": "648571e4243045aeb153dbb7d1ad2062"
+  },
+  "webapp/src/panel/companyList.test.js": {
+    "mtime": 1784539861.4094975,
+    "ast_hash": "4995d01673e2523d1d6c3f0822f26053",
+    "semantic_hash": "4995d01673e2523d1d6c3f0822f26053"
+  },
+  "webapp/src/panel/compareSelection.js": {
+    "mtime": 1784407476.4958606,
+    "ast_hash": "2ab5e39d36abf0f7539d4731df6942ff",
+    "semantic_hash": "2ab5e39d36abf0f7539d4731df6942ff"
+  },
+  "webapp/src/panel/compareSelection.test.js": {
+    "mtime": 1784407476.497267,
+    "ast_hash": "d851356dd61643006a3960290908acd3",
+    "semantic_hash": "d851356dd61643006a3960290908acd3"
+  },
+  "webapp/src/panel/pdfExport.js": {
+    "mtime": 1784586541.345353,
+    "ast_hash": "8c3d6dedb4d6a0e04ecfc5a4662451bd",
+    "semantic_hash": "8c3d6dedb4d6a0e04ecfc5a4662451bd"
+  },
+  "webapp/src/panel/pdfExport.test.js": {
+    "mtime": 1784586541.3470094,
+    "ast_hash": "d79055f89a3acd4a85419e464527a433",
+    "semantic_hash": "d79055f89a3acd4a85419e464527a433"
+  },
+  "webapp/src/panel/portfolioLiveRefresh.js": {
+    "mtime": 1784450899.7388556,
+    "ast_hash": "4814bd2dbe5456fe509b1937c49a91fc",
+    "semantic_hash": "4814bd2dbe5456fe509b1937c49a91fc"
+  },
+  "webapp/src/panel/portfolioLiveRefresh.test.js": {
+    "mtime": 1784450899.7388556,
+    "ast_hash": "93406e0ae7a7d71f4cfdd43e53d84392",
+    "semantic_hash": "93406e0ae7a7d71f4cfdd43e53d84392"
+  },
+  "webapp/src/panel/portfolioSort.js": {
+    "mtime": 1784409915.1629806,
+    "ast_hash": "20fa47baf3d494e2672ef71a5aa06853",
+    "semantic_hash": "20fa47baf3d494e2672ef71a5aa06853"
+  },
+  "webapp/src/panel/portfolioSort.test.js": {
+    "mtime": 1784409915.1639855,
+    "ast_hash": "3b6e2978efe1b8818d62484f64bd58bd",
+    "semantic_hash": "3b6e2978efe1b8818d62484f64bd58bd"
+  },
+  "webapp/src/panel/portfolioTable.js": {
+    "mtime": 1784551750.4617758,
+    "ast_hash": "f560592101872004f9869716a8e037f4",
+    "semantic_hash": "f560592101872004f9869716a8e037f4"
+  },
+  "webapp/src/panel/portfolioTable.test.js": {
+    "mtime": 1784551750.4657726,
+    "ast_hash": "3b6c3aff95cf939e8bb1e5e02847f7c4",
+    "semantic_hash": "3b6c3aff95cf939e8bb1e5e02847f7c4"
+  },
+  "webapp/src/panel/sidePanel.js": {
+    "mtime": 1784612936.5424516,
+    "ast_hash": "b211bb7df8b130fbd1a0209d6eae5b63",
+    "semantic_hash": "b211bb7df8b130fbd1a0209d6eae5b63"
+  },
+  "webapp/src/panel/sidePanel.test.js": {
+    "mtime": 1784612936.5424516,
+    "ast_hash": "2c44d7a4b674d9e1763b20b25044299b",
+    "semantic_hash": "2c44d7a4b674d9e1763b20b25044299b"
+  },
+  "webapp/src/timeline/weekAdmin.js": {
+    "mtime": 1784582677.1814957,
+    "ast_hash": "cb1d5b1faf645b6b9f7f78d784896777",
+    "semantic_hash": "cb1d5b1faf645b6b9f7f78d784896777"
+  },
+  "webapp/src/timeline/weekAdmin.test.js": {
+    "mtime": 1784582677.1814957,
+    "ast_hash": "18df773e09ba82ef048877d2e6316fa0",
+    "semantic_hash": "18df773e09ba82ef048877d2e6316fa0"
+  },
+  "webapp/src/timeline/weekTimeline.js": {
+    "mtime": 1784581148.4372344,
+    "ast_hash": "f52aad7a548bae2e0da617b7bfa18b02",
+    "semantic_hash": "f52aad7a548bae2e0da617b7bfa18b02"
+  },
+  "webapp/src/timeline/weekTimeline.test.js": {
+    "mtime": 1784581148.4434853,
+    "ast_hash": "dfe03e24e3e5aeec470727a4d2d7dfe5",
+    "semantic_hash": "dfe03e24e3e5aeec470727a4d2d7dfe5"
+  },
+  "webapp/vite.config.js": {
+    "mtime": 1784389159.8085117,
+    "ast_hash": "8458b554bb81da5a2a9956f403bcce14",
+    "semantic_hash": "8458b554bb81da5a2a9956f403bcce14"
+  },
+  "webapp/vitest.config.js": {
+    "mtime": 1784389159.8147447,
+    "ast_hash": "fa294c81af2e717f87bf7e7e32fc98de",
+    "semantic_hash": "fa294c81af2e717f87bf7e7e32fc98de"
+  },
+  ".claude/commands/ProjetSiteMakor.md": {
+    "mtime": 1784622944.0624607,
+    "ast_hash": "579a52930dad4ac35624d86a4768f369",
+    "semantic_hash": "579a52930dad4ac35624d86a4768f369"
+  },
+  "Resume_Projet_Makor_Morning_News_1.md": {
+    "mtime": 1784290579.2762313,
+    "ast_hash": "64bb5c5dcbbc4bf3e6960e6f9cf0702e",
+    "semantic_hash": "64bb5c5dcbbc4bf3e6960e6f9cf0702e"
+  },
+  "docs/superpowers/plans/2026-07-17-globe-socle.md": {
+    "mtime": 1784389159.7421803,
+    "ast_hash": "7b52c0a406f0c26a41c736f1c918e2b3",
+    "semantic_hash": "7b52c0a406f0c26a41c736f1c918e2b3"
+  },
+  "docs/superpowers/plans/2026-07-18-panel-timeline.md": {
+    "mtime": 1784401315.520131,
+    "ast_hash": "5826c97aebaeced6e879f68fdcf95fcb",
+    "semantic_hash": "5826c97aebaeced6e879f68fdcf95fcb"
+  },
+  "docs/superpowers/plans/2026-07-19-admin-edit-indices.md": {
+    "mtime": 1784455034.3233027,
+    "ast_hash": "4858a62871c153081595a37b011bff7a",
+    "semantic_hash": "4858a62871c153081595a37b011bff7a"
+  },
+  "docs/superpowers/plans/2026-07-19-company-chart.md": {
+    "mtime": 1784448239.2955694,
+    "ast_hash": "4698153b81b70ac341acf9100e4d083c",
+    "semantic_hash": "4698153b81b70ac341acf9100e4d083c"
+  },
+  "docs/superpowers/plans/2026-07-19-entreprises-panel.md": {
+    "mtime": 1784407476.4789398,
+    "ast_hash": "fed3df199d5a92ee5d44a8bfd20e8545",
+    "semantic_hash": "fed3df199d5a92ee5d44a8bfd20e8545"
+  },
+  "docs/superpowers/plans/2026-07-19-portfolio-live-refresh.md": {
+    "mtime": 1784449452.6353374,
+    "ast_hash": "bfdc40548242418b9d8a0018b67cb8f9",
+    "semantic_hash": "bfdc40548242418b9d8a0018b67cb8f9"
+  },
+  "docs/superpowers/plans/2026-07-19-portfolio-table.md": {
+    "mtime": 1784409915.1569722,
+    "ast_hash": "c5a59ad7fe4cbb85ce7cf27cfdbb5415",
+    "semantic_hash": "c5a59ad7fe4cbb85ce7cf27cfdbb5415"
+  },
+  "docs/superpowers/plans/2026-07-20-admin-delete-week.md": {
+    "mtime": 1784581471.2733264,
+    "ast_hash": "7d315af99a5d3eef241381c0b4fd68bc",
+    "semantic_hash": "7d315af99a5d3eef241381c0b4fd68bc"
+  },
+  "docs/superpowers/plans/2026-07-20-admin-edit-companies.md": {
+    "mtime": 1784536169.7946568,
+    "ast_hash": "7b4b87eb35e33448683215c07045c80b",
+    "semantic_hash": "7b4b87eb35e33448683215c07045c80b"
+  },
+  "docs/superpowers/plans/2026-07-20-admin-edit-news.md": {
+    "mtime": 1784557758.9801784,
+    "ast_hash": "e2f28e9523d60779f7f3318f94f69d88",
+    "semantic_hash": "e2f28e9523d60779f7f3318f94f69d88"
+  },
+  "docs/superpowers/plans/2026-07-20-admin-edit-portfolio.md": {
+    "mtime": 1784540379.6045425,
+    "ast_hash": "eab033d4a088132e841af60abb272238",
+    "semantic_hash": "eab033d4a088132e841af60abb272238"
+  },
+  "docs/superpowers/plans/2026-07-20-admin-edit-weeks.md": {
+    "mtime": 1784568908.2722757,
+    "ast_hash": "a6b7e499cc38ea517c777b31bab13b06",
+    "semantic_hash": "a6b7e499cc38ea517c777b31bab13b06"
+  },
+  "docs/superpowers/plans/2026-07-20-pdf-export.md": {
+    "mtime": 1784583144.8238366,
+    "ast_hash": "08794bba172574a0c532a360254b7f83",
+    "semantic_hash": "08794bba172574a0c532a360254b7f83"
+  },
+  "docs/superpowers/plans/2026-07-21-ia-fintech-panel.md": {
+    "mtime": 1784587277.5452342,
+    "ast_hash": "a72101dace20b25bae7cbe5ef76dabb4",
+    "semantic_hash": "a72101dace20b25bae7cbe5ef76dabb4"
+  },
+  "docs/superpowers/plans/2026-07-22-week-duplication.md": {
+    "mtime": 1784624309.988999,
+    "ast_hash": "1385083fa5c3e07e290065ccc9827888",
+    "semantic_hash": "1385083fa5c3e07e290065ccc9827888"
+  },
+  "docs/superpowers/specs/2026-07-17-globe-redesign-design.md": {
+    "mtime": 1784294418.5144317,
+    "ast_hash": "41b1c89855c1d97879016afb6829aaeb",
+    "semantic_hash": "41b1c89855c1d97879016afb6829aaeb"
+  },
+  "index.html": {
+    "mtime": 1784290924.9785178,
+    "ast_hash": "8b22e534c77a30455158d1536a778524",
+    "semantic_hash": "8b22e534c77a30455158d1536a778524"
+  },
+  "webapp/index.html": {
+    "mtime": 1784612936.5259895,
+    "ast_hash": "5736a41050091587bce886598f96de4c",
+    "semantic_hash": "5736a41050091587bce886598f96de4c"
+  },
+  "webapp/public/textures/earth-blue-marble.jpg": {
+    "mtime": 1784389159.766769,
+    "ast_hash": "8ec81bb437b68fdb4bd46604ff698736",
+    "semantic_hash": "8ec81bb437b68fdb4bd46604ff698736"
+  },
+  "webapp/public/textures/night-sky.png": {
+    "mtime": 1784389159.785181,
+    "ast_hash": "1701d6355eb0713db98c2734e162c169",
+    "semantic_hash": "1701d6355eb0713db98c2734e162c169"
+  }
+}

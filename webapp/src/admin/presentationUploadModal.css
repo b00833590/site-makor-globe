@@ -1,0 +1,86 @@
+.presentation-upload-modal {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  z-index: 20;
+  align-items: center;
+  justify-content: center;
+}
+
+.presentation-upload-modal.open {
+  display: flex;
+}
+
+.presentation-upload-modal-content {
+  background: var(--surface);
+  border: 1px solid rgba(74, 58, 130, 0.3);
+  border-radius: 8px;
+  padding: 20px;
+  min-width: 320px;
+}
+
+.presentation-upload-modal-content h3 {
+  color: var(--text);
+  font-size: 14px;
+  margin: 0 0 12px;
+}
+
+.presentation-upload-modal-content input {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 8px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  background: var(--surface-alt);
+  color: var(--text);
+  font-size: 13px;
+  margin-top: 10px;
+}
+
+.presentation-upload-modal-content input:first-of-type {
+  margin-top: 0;
+}
+
+.presentation-upload-modal-error {
+  display: none;
+  color: #e0736a;
+  font-size: 12px;
+  margin-top: 8px;
+}
+
+.presentation-upload-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+/* See pdfSectionsModal.css: --accent as text on --surface is invisible.
+   Primary (last) button = --accent background + white text; secondary = lighter
+   surface + --text. */
+.presentation-upload-modal-actions button {
+  background: var(--surface-button);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text);
+  cursor: pointer;
+  font-size: 12px;
+  padding: 6px 12px;
+}
+
+.presentation-upload-modal-actions button:last-child {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+.presentation-upload-modal-actions button:hover:not(:disabled) {
+  filter: brightness(1.2);
+}
+
+.presentation-upload-modal-actions button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}

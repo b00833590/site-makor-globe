@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Makor Morning News — Globe</title>
+</head>
+<body>
+  <header id="top-banner" class="top-banner">
+    <div class="top-banner-search">
+      <input id="top-banner-search-input" class="top-banner-search-input" type="text" placeholder="Rechercher une entreprise..." autocomplete="off" />
+      <div id="top-banner-search-results" class="top-banner-search-results scroll-y-styled"></div>
+    </div>
+    <div id="week-timeline" class="week-timeline"></div>
+  </header>
+  <div id="week-admin" class="week-admin"></div>
+  <div id="globe-container"></div>
+  <div id="region-indicator" class="region-indicator"></div>
+  <button id="edit-toggle-btn" class="edit-toggle-btn" type="button">✏️ Éditer</button>
+  <button id="undo-all-btn" class="undo-all-btn" type="button" title="Annuler toutes les modifications de cette session d'édition">↺ Tout annuler</button>
+  <button id="export-pdf-btn" class="export-pdf-btn" type="button">📄 Exporter en PDF</button>
+  <button id="presentation-mode-btn" class="presentation-mode-btn" type="button" aria-pressed="false">🖥️ Mode Présentation</button>
+  <button id="brightness-mode-btn" class="brightness-mode-btn" type="button">☀️ Luminosité : Standard</button>
+  <button id="arrow-prev" class="arrow-btn arrow-prev" aria-label="Région précédente">‹</button>
+  <button id="arrow-next" class="arrow-btn arrow-next" aria-label="Région suivante">›</button>
+  <button id="panel-toggle-btn" class="panel-toggle-btn" type="button" aria-expanded="false" aria-label="Afficher le panneau d'informations">‹</button>
+  <button id="presentations-trigger-btn" class="presentations-trigger-btn" type="button" aria-label="Présentations IA & Fintech" title="Présentations IA & Fintech">
+    <span class="trigger-btn-icon">📊</span><span class="trigger-btn-label">Présentations IA & Fintech</span>
+  </button>
+  <button id="lexique-trigger-btn" class="lexique-trigger-btn" type="button" aria-label="Lexique des entreprises" title="Lexique des entreprises">
+    <span class="trigger-btn-icon">📖</span><span class="trigger-btn-label">Lexique</span>
+  </button>
+  <div id="lexique-modal" class="lexique-modal">
+    <div class="lexique-modal-content">
+      <div class="lexique-modal-header">
+        <h3>📖 Lexique des entreprises</h3>
+        <button id="lexique-modal-close" type="button" aria-label="Fermer">✕</button>
+      </div>
+      <input id="lexique-search-input" class="lexique-search-input" type="text" placeholder="Rechercher..." autocomplete="off" />
+      <div id="lexique-list" class="lexique-list scroll-y-styled"></div>
+    </div>
+  </div>
+  <div id="presentations-modal" class="presentations-modal">
+    <div class="presentations-modal-content scroll-y-styled">
+      <div class="presentations-modal-header">
+        <h3>📊 Présentations IA & Fintech</h3>
+        <button id="presentations-modal-close" type="button" aria-label="Fermer">✕</button>
+      </div>
+      <div id="panel-presentations" class="presentations-grid"></div>
+    </div>
+  </div>
+  <aside class="side-panel scroll-y-styled">
+    <div id="panel-resize-handle" class="panel-resize-handle" title="Redimensionner le panneau" aria-hidden="true"></div>
+    <div id="panel-region-label" class="panel-region-label"></div>
+    <div class="panel-section-label">Indices régionaux</div>
+    <div id="panel-indices"></div>
+    <div class="panel-section-label">News macro</div>
+    <div id="panel-news"></div>
+    <div class="panel-section-label">Entreprises présentées</div>
+    <div id="panel-companies"></div>
+    <div id="panel-compare"></div>
+    <div class="panel-section-label">Suivi de portefeuille</div>
+    <div id="panel-portfolio-section" class="panel-portfolio-section">
+      <div class="portfolio-region-header">
+        <div id="panel-portfolio-region-label" class="portfolio-region-label"></div>
+        <button id="export-portfolio-pdf-btn" class="portfolio-export-btn" type="button" aria-label="Exporter le portefeuille de cette région en PDF">📄</button>
+      </div>
+      <div id="panel-portfolio"></div>
+    </div>
+  </aside>
+  <div id="chart-modal" class="chart-modal">
+    <div class="chart-modal-content">
+      <div class="chart-modal-header">
+        <span id="chart-modal-title"></span>
+        <button id="chart-modal-close" type="button" aria-label="Fermer">✕</button>
+      </div>
+      <div id="chart-modal-body"></div>
+    </div>
+  </div>
+  <div id="password-modal" class="password-modal">
+    <div class="password-modal-content">
+      <h3>🔒 Mode édition</h3>
+      <input type="password" id="password-input" placeholder="Mot de passe" />
+      <div id="password-error" class="password-modal-error">Mot de passe incorrect.</div>
+      <div class="password-modal-actions">
+        <button id="password-cancel" type="button">Annuler</button>
+        <button id="password-ok" type="button">Déverrouiller</button>
+      </div>
+    </div>
+  </div>
+  <div id="presentation-upload-modal" class="presentation-upload-modal">
+    <div class="presentation-upload-modal-content">
+      <h3>📤 Ajouter une présentation</h3>
+      <input type="file" id="presentation-upload-file" accept="application/pdf" />
+      <input type="text" id="presentation-upload-title" placeholder="Titre (optionnel — par défaut, le nom du fichier)" />
+      <div id="presentation-upload-error" class="presentation-upload-modal-error"></div>
+      <div class="presentation-upload-modal-actions">
+        <button id="presentation-upload-cancel" type="button">Annuler</button>
+        <button id="presentation-upload-ok" type="button">Envoyer</button>
+      </div>
+    </div>
+  </div>
+  <div id="pdf-sections-modal" class="pdf-sections-modal">
+    <div class="pdf-sections-modal-content">
+      <h3>📄 Exporter en PDF</h3>
+      <div class="pdf-sections-modal-sub">Choisis les sections à inclure dans le document.</div>
+      <div class="pdf-sections-modal-list">
+        <label class="pdf-sections-modal-row">
+          <input type="checkbox" class="pdf-sections-modal-checkbox" value="indices" checked />
+          <span>Indices</span>
+        </label>
+        <label class="pdf-sections-modal-row">
+          <input type="checkbox" class="pdf-sections-modal-checkbox" value="news" checked />
+          <span>News macro</span>
+        </label>
+        <label class="pdf-sections-modal-row">
+          <input type="checkbox" class="pdf-sections-modal-checkbox" value="companies" checked />
+          <span>Entreprises</span>
+        </label>
+        <label class="pdf-sections-modal-row">
+          <input type="checkbox" class="pdf-sections-modal-checkbox" value="portfolio" checked />
+          <span>Suivi du portefeuille</span>
+        </label>
+      </div>
+      <div class="pdf-sections-modal-actions">
+        <button id="pdf-sections-cancel" type="button">Annuler</button>
+        <button id="pdf-sections-ok" type="button">Générer le PDF</button>
+      </div>
+    </div>
+  </div>
+  <div id="admin-toast" class="admin-toast"></div>
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>

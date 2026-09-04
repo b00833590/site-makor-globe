@@ -1,0 +1,136 @@
+.portfolio-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  margin-top: 8px;
+}
+
+.portfolio-table th,
+.portfolio-table td {
+  border-bottom: 1px solid var(--border);
+  padding: 5px 4px;
+  text-align: left;
+  color: var(--text);
+}
+
+/* En-têtes de colonnes forcés en blanc pur, sur demande explicite —
+   surcharge le var(--text) partagé avec les td juste au-dessus : les
+   cellules de données (td) gardent var(--text), seuls les th changent. */
+.portfolio-table th {
+  color: #ffffff;
+}
+
+.portfolio-table th.portfolio-sortable {
+  color: #ffffff;
+  cursor: pointer;
+  font-size: 10px;
+  text-transform: uppercase;
+  user-select: none;
+}
+
+.portfolio-table th.portfolio-sortable:hover {
+  color: var(--text);
+}
+
+/*
+ * Scoped as ".portfolio-table td.portfolio-cell-*" (not just ".portfolio-cell-*")
+ * so this outranks ".portfolio-table td { color: var(--text) }" above — a plain single-class
+ * selector has LOWER specificity than a class+element selector and was silently
+ * losing the cascade despite the class being applied correctly (found live: the
+ * class was present on the cell, getComputedStyle(cell).color was still white).
+ */
+.portfolio-table td.portfolio-cell-positive {
+  color: #4ade80;
+}
+
+.portfolio-table td.portfolio-cell-negative {
+  color: #f87171;
+}
+
+.portfolio-region-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.portfolio-region-label {
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: bold;
+}
+
+.portfolio-export-btn {
+  background: transparent;
+  border: 1px solid rgba(74, 58, 130, 0.4);
+  border-radius: 4px;
+  color: var(--accent, #4a3a82);
+  cursor: pointer;
+  font-size: 13px;
+  line-height: 1;
+  padding: 3px 6px;
+}
+
+.portfolio-export-btn:hover {
+  background: rgba(74, 58, 130, 0.2);
+}
+
+.portfolio-export-btn:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.portfolio-cell-input {
+  width: 100%;
+  box-sizing: border-box;
+  background: var(--surface-alt);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text);
+  font-size: 11px;
+  padding: 2px 4px;
+}
+
+.portfolio-delete {
+  background: transparent;
+  border: none;
+  color: #e0736a;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.portfolio-add {
+  display: block;
+  width: 100%;
+  margin-top: 8px;
+  background: transparent;
+  border: 1px dashed rgba(74, 58, 130, 0.4);
+  border-radius: 4px;
+  color: var(--accent, #4a3a82);
+  cursor: pointer;
+  font-size: 12px;
+  padding: 6px;
+}
+
+.portfolio-add:hover {
+  background: rgba(74, 58, 130, 0.15);
+}
+
+/* ---------- Mode Présentation : grand écran ---------- */
+body.presentation-mode .portfolio-table {
+  font-size: 16px;
+}
+
+body.presentation-mode .portfolio-table th,
+body.presentation-mode .portfolio-table td {
+  padding: 10px 8px;
+}
+
+body.presentation-mode .portfolio-table th.portfolio-sortable {
+  font-size: 13px;
+}
+
+body.presentation-mode .portfolio-region-label {
+  font-size: 16px;
+}

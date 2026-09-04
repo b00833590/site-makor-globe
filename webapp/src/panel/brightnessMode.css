@@ -1,0 +1,50 @@
+/* Same family/position as .presentation-mode-btn, stacked directly below it
+   (top: 64px + ~46px) — deliberately NOT hidden in presentation-mode (unlike
+   .edit-toggle-btn/.export-pdf-btn/.undo-all-btn) since adapting to a lit
+   room is exactly what this control is for *during* a live presentation. */
+.brightness-mode-btn {
+  position: fixed;
+  top: 110px;
+  left: 16px;
+  z-index: 15;
+  background: var(--surface-button);
+  border: 1px solid rgba(179, 165, 224, 0.4);
+  border-radius: 6px;
+  color: var(--gold-light, #b3a5e0);
+  cursor: pointer;
+  font-size: 12px;
+  padding: 8px 14px;
+}
+
+.brightness-mode-btn:hover {
+  background: rgba(138, 124, 192, 0.25);
+}
+
+/* ---------- Luminosité : Lumineux ---------- */
+/* Brightens Group B's design tokens only (panels/cards/secondary text/
+   borders) — --navy/--navy2 (globe/space backdrop) and --accent (the
+   theme's one deliberate strong-contrast color) are left untouched, so the
+   globe stays legible and the visual identity doesn't change, only its
+   readability in a lit room. Same "override the token, let it cascade to
+   every consumer" technique presentationMode.css already uses for
+   --panel-width. */
+body[data-brightness="lumineux"] {
+  --surface: #322f4c;
+  --surface-alt: #3b3758;
+  --surface-card: #423e63;
+  --surface-button: #4a4570;
+  --surface-highlight: #585087;
+  --border: rgba(237, 235, 245, 0.22);
+  --text-muted: #b3aecb;
+}
+
+/* ---------- Luminosité : Très lumineux ---------- */
+body[data-brightness="tres-lumineux"] {
+  --surface: #454165;
+  --surface-alt: #4e4a72;
+  --surface-card: #56517d;
+  --surface-button: #5f5989;
+  --surface-highlight: #6d66a0;
+  --border: rgba(237, 235, 245, 0.34);
+  --text-muted: #cfccdf;
+}

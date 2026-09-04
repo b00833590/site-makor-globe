@@ -1,0 +1,26 @@
+.panel-toggle-btn {
+  position: fixed;
+  top: calc(50% - 90px);
+  right: 0;
+  transform: translateY(-50%);
+  width: 28px;
+  height: 56px;
+  border-radius: 6px 0 0 6px;
+  background: var(--surface-button);
+  border: 1px solid rgba(74, 58, 130, 0.4);
+  border-right: none;
+  color: var(--gold-light, #b3a5e0);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  z-index: 6;
+  transition: right 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.panel-toggle-btn:hover {
+  background: rgba(74, 58, 130, 0.25);
+}
+
+body.panel-open .panel-toggle-btn {
+  right: var(--panel-width, 460px);
+}

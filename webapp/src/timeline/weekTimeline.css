@@ -1,0 +1,98 @@
+.week-timeline-wrap {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 100%;
+}
+
+.week-timeline {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 0 12px;
+  scroll-snap-type: x proximity;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(74, 58, 130, 0.25) transparent;
+}
+
+.week-timeline::-webkit-scrollbar {
+  height: 5px;
+}
+
+.week-timeline::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.week-timeline::-webkit-scrollbar-thumb {
+  background: rgba(74, 58, 130, 0.25);
+  border-radius: 3px;
+  transition: background-color 0.2s ease;
+}
+
+.week-timeline:hover::-webkit-scrollbar-thumb,
+.week-timeline.is-scrolling::-webkit-scrollbar-thumb {
+  background: rgba(74, 58, 130, 0.7);
+}
+
+.week-timeline-fade {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 28px;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  z-index: 1;
+}
+
+/* Fades to var(--surface) rather than var(--navy): .week-timeline lives
+   inside .top-banner, which Task 1 repaints to the light Group B surface —
+   fading to the old dark navy here would draw a visible dark block over the
+   light banner instead of blending into it. */
+.week-timeline-fade-left {
+  left: 0;
+  background: linear-gradient(to right, var(--surface, #1c1b2e), transparent);
+}
+
+.week-timeline-fade-right {
+  right: 0;
+  background: linear-gradient(to left, var(--surface, #1c1b2e), transparent);
+}
+
+.week-timeline-fade.visible {
+  opacity: 1;
+}
+
+.week-tab {
+  scroll-snap-align: start;
+  flex: 0 0 auto;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  padding: 6px 10px;
+  color: var(--text-muted);
+  font-size: 11px;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.week-tab:hover {
+  color: var(--text);
+  background: rgba(74, 58, 130, 0.1);
+}
+
+.week-tab.active {
+  /* var(--text), pas var(--surface) : le texte doit rester clair sur le
+     fond violet vif de l'accent, quelle que soit la teinte de --surface.
+     Un ancien réglage réutilisait --surface ici parce qu'il était toujours
+     clair par construction (thème blanc/perle) — devenu un bug de
+     contraste réel (1.78:1) maintenant que --surface est sombre. */
+  color: var(--text);
+  background: var(--accent, #4a3a82);
+  font-weight: bold;
+}

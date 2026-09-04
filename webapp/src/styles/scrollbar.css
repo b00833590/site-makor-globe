@@ -1,0 +1,26 @@
+/* Scrollbar verticale partagée — même langage visuel que la scrollbar
+   horizontale de weekTimeline.css (thumb discret au repos, plus visible au
+   survol/pendant le défilement), adaptée en `width` au lieu de `height`. */
+.scroll-y-styled {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(74, 58, 130, 0.2) transparent;
+}
+
+.scroll-y-styled::-webkit-scrollbar {
+  width: 6px;
+}
+
+.scroll-y-styled::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.scroll-y-styled::-webkit-scrollbar-thumb {
+  background: rgba(74, 58, 130, 0.2);
+  border-radius: 3px;
+  transition: background-color 0.2s ease;
+}
+
+.scroll-y-styled:hover::-webkit-scrollbar-thumb,
+.scroll-y-styled.is-scrolling::-webkit-scrollbar-thumb {
+  background: rgba(74, 58, 130, 0.55);
+}

@@ -1,0 +1,358 @@
+:root {
+  --panel-width: 460px;
+}
+
+.side-panel {
+  position: fixed;
+  top: 44px;
+  right: 0;
+  bottom: 0;
+  width: var(--panel-width);
+  background: var(--surface);
+  border-left: 1px solid var(--border);
+  box-shadow: -12px 0 32px rgba(36, 28, 61, 0.1);
+  padding: 16px;
+  box-sizing: border-box;
+  overflow-y: auto;
+  color: var(--text);
+  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  z-index: 4;
+  transform: translateX(100%);
+  transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+body.panel-open .side-panel {
+  transform: translateX(0);
+}
+
+.panel-region-label {
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: bold;
+  letter-spacing: 0.5px;
+  margin-bottom: 12px;
+  text-transform: uppercase;
+}
+
+.panel-section-label {
+  display: inline-block;
+  background: var(--surface-card);
+  color: var(--text-muted);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  padding: 3px 8px;
+  border-radius: 4px;
+  margin: 14px 0 6px;
+}
+
+.panel-index-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  background: var(--surface-alt);
+  border-radius: 6px;
+  padding: 8px 10px;
+  margin-bottom: 6px;
+  font-size: 12px;
+}
+
+.panel-index-name {
+  flex: 1;
+}
+
+.panel-index-change.positive {
+  color: #4ade80;
+}
+
+.panel-index-change.negative {
+  color: #f87171;
+}
+
+.panel-news-block {
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.panel-news-block h3 {
+  margin: 0 0 4px;
+  font-size: 13px;
+}
+
+.panel-news-block p {
+  margin: 0;
+  font-size: 12px;
+  /* Was var(--text-muted): too low-contrast for a big-screen presentation
+     in a lit room — same reasoning as companyList.css's bullet/sub/cap text. */
+  color: var(--text);
+}
+
+.panel-index-name-input {
+  width: 100%;
+  box-sizing: border-box;
+  background: var(--surface-alt);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text);
+  font-size: 12px;
+  padding: 2px 4px;
+}
+
+.panel-index-value-input,
+.panel-index-change-input {
+  width: 64px;
+  box-sizing: border-box;
+  background: var(--surface-alt);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text);
+  font-size: 12px;
+  padding: 2px 4px;
+}
+
+/* Overrides the shared color:var(--text) above so a custom color set on the
+   parent .panel-index-name/.panel-index-value/.panel-index-change span (via
+   the color picker) is visible while editing too, not just in the read-only
+   view — an explicit color on this input would otherwise always win over
+   the parent's inline style regardless of specificity, since inline styles
+   don't cascade onto child elements that have their own explicit color.
+   Resolves to the same default text color (inherited from .side-panel's own
+   color:var(--text), or from .positive/.negative for weekChange) when no
+   custom color is set. */
+.panel-index-name-input,
+.panel-index-value-input,
+.panel-index-change-input {
+  color: inherit;
+}
+
+.panel-index-delete {
+  background: transparent;
+  border: none;
+  color: #e0736a;
+  cursor: pointer;
+  font-size: 12px;
+  margin-left: 6px;
+}
+
+.panel-index-add {
+  display: block;
+  width: 100%;
+  margin-top: 8px;
+  background: transparent;
+  border: 1px dashed rgba(74, 58, 130, 0.4);
+  border-radius: 4px;
+  color: var(--accent, #4a3a82);
+  cursor: pointer;
+  font-size: 12px;
+  padding: 6px;
+}
+
+.panel-index-add:hover {
+  background: rgba(74, 58, 130, 0.15);
+}
+
+.panel-news-title-input {
+  width: 100%;
+  box-sizing: border-box;
+  background: var(--surface-alt);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: bold;
+  padding: 4px 6px;
+}
+
+.panel-news-description-input {
+  width: 100%;
+  min-height: 60px;
+  box-sizing: border-box;
+  background: var(--surface-alt);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text);
+  font-size: 12px;
+  padding: 4px 6px;
+  margin-top: 4px;
+  resize: vertical;
+}
+
+.panel-news-delete {
+  display: block;
+  margin-top: 6px;
+  background: transparent;
+  border: 1px solid rgba(224, 118, 106, 0.4);
+  border-radius: 4px;
+  color: #e0736a;
+  cursor: pointer;
+  font-size: 11px;
+  padding: 4px 8px;
+}
+
+.panel-news-add {
+  display: block;
+  width: 100%;
+  margin-top: 10px;
+  background: transparent;
+  border: 1px dashed rgba(74, 58, 130, 0.4);
+  border-radius: 4px;
+  color: var(--accent, #4a3a82);
+  cursor: pointer;
+  font-size: 12px;
+  padding: 6px;
+}
+
+.panel-news-add:hover {
+  background: rgba(74, 58, 130, 0.15);
+}
+
+.panel-iafintech-card {
+  background: var(--surface-card);
+  border: 1px solid var(--border);
+  box-shadow: 0 1px 3px rgba(36, 28, 61, 0.08);
+  border-radius: 8px;
+  padding: 10px;
+  margin-bottom: 10px;
+  font-size: 12px;
+}
+
+.panel-iafintech-card h3 {
+  margin: 6px 0 4px;
+  font-size: 13px;
+}
+
+.panel-iafintech-card p {
+  margin: 0;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.panel-iafintech-tag {
+  display: inline-block;
+  background: rgba(74, 58, 130, 0.2);
+  border: 1px solid rgba(74, 58, 130, 0.4);
+  border-radius: 10px;
+  color: var(--accent, #4a3a82);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 2px 8px;
+}
+
+.panel-iafintech-stat {
+  margin-top: 6px;
+  color: var(--text);
+  font-size: 12px;
+}
+
+.panel-iafintech-link {
+  display: inline-block;
+  margin-top: 6px;
+  color: var(--accent, #4a3a82);
+  font-size: 11px;
+  text-decoration: none;
+}
+
+.panel-iafintech-link:hover {
+  text-decoration: underline;
+}
+
+.panel-iafintech-tag-input,
+.panel-iafintech-title-input,
+.panel-iafintech-stat-label-input,
+.panel-iafintech-stat-value-input,
+.panel-iafintech-link-input {
+  width: 100%;
+  box-sizing: border-box;
+  background: var(--surface-alt);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text);
+  font-size: 12px;
+  padding: 2px 4px;
+  margin-top: 2px;
+}
+
+.panel-iafintech-description-input {
+  width: 100%;
+  min-height: 60px;
+  box-sizing: border-box;
+  background: var(--surface-alt);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text);
+  font-size: 12px;
+  padding: 4px 6px;
+  margin-top: 4px;
+  resize: vertical;
+}
+
+.panel-iafintech-delete {
+  display: block;
+  width: 100%;
+  margin-top: 8px;
+  background: transparent;
+  border: 1px solid rgba(224, 118, 106, 0.4);
+  border-radius: 4px;
+  color: #e0736a;
+  cursor: pointer;
+  font-size: 11px;
+  padding: 4px;
+}
+
+.panel-iafintech-add {
+  display: block;
+  width: 100%;
+  margin-top: 10px;
+  background: transparent;
+  border: 1px dashed rgba(74, 58, 130, 0.4);
+  border-radius: 4px;
+  color: var(--accent, #4a3a82);
+  cursor: pointer;
+  font-size: 12px;
+  padding: 6px;
+}
+
+.panel-iafintech-add:hover {
+  background: rgba(74, 58, 130, 0.15);
+}
+
+/* ---------- Mode Présentation : grand écran ---------- */
+/* --panel-width is a :root custom property — redeclaring it on body cascades
+   to every descendant that reads it (the panel itself, plus every
+   body.panel-open rule elsewhere that reads var(--panel-width, 460px)),
+   without needing to touch those rules individually. */
+body.presentation-mode {
+  --panel-width: 760px;
+}
+
+body.presentation-mode .panel-region-label {
+  font-size: 20px;
+}
+
+body.presentation-mode .panel-section-label {
+  font-size: 14px;
+  padding: 5px 12px;
+}
+
+body.presentation-mode .panel-index-row {
+  font-size: 17px;
+  padding: 12px 14px;
+}
+
+body.presentation-mode .panel-news-block h3 {
+  font-size: 19px;
+}
+
+body.presentation-mode .panel-news-block p {
+  font-size: 16px;
+}
+
+body.presentation-mode .panel-iafintech-card {
+  font-size: 16px;
+}
+
+body.presentation-mode .panel-iafintech-card h3 {
+  font-size: 18px;
+}

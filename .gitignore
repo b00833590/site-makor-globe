@@ -1,0 +1,8 @@
+.superpowers/
+webapp/node_modules/
+webapp/dist/
+.worktrees/
+.vercel
+.env*
+.claude/
+/node_modules/

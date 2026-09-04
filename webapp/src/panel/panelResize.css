@@ -1,0 +1,37 @@
+/* Positioned as the first child of .side-panel (see index.html) — .side-panel
+   is `position: fixed`, so it's the nearest positioned ancestor and this
+   absolute box tracks the panel's own open/close slide transform for free. */
+.panel-resize-handle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -4px;
+  width: 8px;
+  cursor: ew-resize;
+  z-index: 5;
+  touch-action: none;
+}
+
+.panel-resize-handle::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 3px;
+  width: 2px;
+  background: var(--border);
+  transition: background 0.15s ease;
+}
+
+.panel-resize-handle:hover::after,
+.panel-resize-handle.dragging::after {
+  background: var(--accent, #4a3a82);
+}
+
+/* Applied to <body> for the duration of a drag so the resize cursor and
+   disabled text-selection stay consistent even if the pointer briefly
+   outruns the (only 8px wide) handle element itself. */
+body.panel-resizing {
+  cursor: ew-resize;
+  user-select: none;
+}

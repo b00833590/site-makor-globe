@@ -1,0 +1,97 @@
+.top-banner {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 48px;
+  background: var(--surface);
+  border-bottom: 1px solid rgba(74, 58, 130, 0.25);
+  display: flex;
+  align-items: center;
+  z-index: 20;
+}
+
+.top-banner-search {
+  position: relative;
+  flex: 0 0 220px;
+  margin-left: 16px;
+}
+
+.top-banner-search-input {
+  width: 100%;
+  box-sizing: border-box;
+  background: var(--surface-alt);
+  border: 1px solid rgba(74, 58, 130, 0.3);
+  border-radius: 6px;
+  color: var(--text);
+  font-size: 12px;
+  padding: 7px 10px;
+}
+
+.top-banner-search-input::placeholder {
+  color: var(--text-muted);
+}
+
+.top-banner-search-input:focus {
+  outline: none;
+  border-color: var(--accent, #4a3a82);
+}
+
+.top-banner-search-results {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  margin-top: 4px;
+  background: var(--surface-alt);
+  border: 1px solid rgba(74, 58, 130, 0.4);
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(36, 28, 61, 0.12);
+  max-height: 280px;
+  overflow-y: auto;
+  z-index: 25;
+}
+
+.top-banner-search-result {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--border);
+  color: var(--text);
+  font-size: 12px;
+  padding: 8px 10px;
+  cursor: pointer;
+}
+
+.top-banner-search-result:last-child {
+  border-bottom: none;
+}
+
+.top-banner-search-result:hover,
+.top-banner-search-result.highlighted {
+  background: rgba(74, 58, 130, 0.2);
+}
+
+.top-banner-search-result-symbol {
+  color: var(--accent, #4a3a82);
+  margin-left: 4px;
+  font-size: 11px;
+}
+
+.top-banner-search-empty {
+  padding: 10px;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+/* Brief highlight applied to a company card after search-navigation lands on it. */
+.panel-company-card.search-highlight {
+  animation: search-highlight-pulse 1.5s ease-out;
+}
+
+@keyframes search-highlight-pulse {
+  0% { box-shadow: 0 0 0 2px var(--accent, #4a3a82); }
+  100% { box-shadow: 0 0 0 2px transparent; }
+}

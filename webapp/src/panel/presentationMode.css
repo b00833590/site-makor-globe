@@ -1,0 +1,48 @@
+/* Top-left, just under the top-banner (48px tall) — same family/style as
+   .edit-toggle-btn/.export-pdf-btn (never hidden by presentation-mode
+   itself, so it always stays reachable to exit, mirroring .panel-toggle-btn
+   always staying visible regardless of body.panel-open). Left-anchored
+   deliberately: the side panel docks on the RIGHT, so a left-anchored
+   button can never end up underneath it regardless of panel width — no
+   panel-open-tracking CSS needed here, unlike the right-anchored buttons. */
+.presentation-mode-btn {
+  position: fixed;
+  top: 64px;
+  left: 16px;
+  z-index: 15;
+  background: var(--surface-button);
+  border: 1px solid rgba(179, 165, 224, 0.4);
+  border-radius: 6px;
+  color: var(--gold-light, #b3a5e0);
+  cursor: pointer;
+  font-size: 12px;
+  padding: 8px 14px;
+}
+
+.presentation-mode-btn:hover {
+  background: rgba(138, 124, 192, 0.25);
+}
+
+.presentation-mode-btn.active {
+  background: var(--accent, #4a3a82);
+  color: #ffffff;
+  border-color: var(--accent, #4a3a82);
+}
+
+/* ---------- Mode Présentation : grand écran ---------- */
+/* Éléments d'administration/navigation secondaire masqués — jamais utiles
+   face à un public pendant une présentation en direct. */
+body.presentation-mode .top-banner-search,
+body.presentation-mode .edit-toggle-btn,
+body.presentation-mode .export-pdf-btn,
+body.presentation-mode .undo-all-btn {
+  display: none !important;
+}
+
+/* Indicateur de région agrandi et plus lisible à distance. */
+body.presentation-mode .region-indicator {
+  top: 78px;
+  padding: 10px 24px;
+  font-size: 18px;
+  border-radius: 26px;
+}

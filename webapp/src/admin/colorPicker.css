@@ -1,0 +1,40 @@
+.color-dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 1px solid rgba(237, 235, 245, 0.3);
+  margin-left: 6px;
+  cursor: pointer;
+  vertical-align: middle;
+}
+
+.color-popup {
+  position: fixed;
+  z-index: 50;
+  display: grid;
+  grid-template-columns: repeat(7, 20px);
+  gap: 4px;
+  padding: 8px;
+  background: var(--surface-alt);
+  border: 1px solid rgba(74, 58, 130, 0.4);
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(36, 28, 61, 0.15);
+}
+
+.color-swatch {
+  width: 20px;
+  height: 20px;
+  border-radius: 4px;
+  cursor: pointer;
+  border: 1px solid rgba(237, 235, 245, 0.2);
+}
+
+.color-swatch-reset {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  color: #e0736a;
+  font-size: 11px;
+}

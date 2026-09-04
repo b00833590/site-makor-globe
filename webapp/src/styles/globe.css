@@ -1,0 +1,187 @@
+:root {
+  /* Fond de la scène globe/espace — INCHANGÉ, reste sombre pour que le
+     globe 3D et le champ d'étoiles restent lisibles. */
+  --navy: #0f1730;
+  --navy2: #1a2340;
+
+  /* Accent conservé pour le Groupe A uniquement (chrome "verre sombre" qui
+     flotte encore au-dessus du globe) — reteinté du doré vers un lavande
+     clair pour garder un contraste fort sur fond sombre, exactement le même
+     rôle qu'avant (accent clair sur fond sombre), juste une autre teinte. */
+  --gold: #8a7cc0;
+  --gold-light: #b3a5e0;
+
+  /* Groupe B (bandeau, panneau, cartes, modales) — après 2 tentatives de
+     fond clair ("blanc pur" puis "gris perle", toutes deux jugées trop
+     "choquantes"), l'utilisateur a demandé un renversement complet vers un
+     thème sombre violet à 5 niveaux de hiérarchie (du fond de panneau au
+     plus foncé jusqu'à la mise en valeur d'une donnée chiffrée clé au plus
+     clair) — même logique de superposition que --surface/--surface-alt
+     avant, simplement étendue et inversée en luminosité. --accent (utilisé
+     pour les CTA/boutons actifs, ex. l'onglet de semaine sélectionné) reste
+     INCHANGÉ sur demande explicite de l'utilisateur : c'est le seul point
+     de contraste fort du thème. */
+  --accent: #4a3a82;
+  --surface: #1c1b2e;
+  --surface-alt: #242239;
+  --surface-card: #2b2942;
+  --surface-button: #332f52;
+  --surface-highlight: #403a5c;
+  /* Bordure translucide claire plutôt qu'une teinte fixe : s'adapte
+     automatiquement aux 5 niveaux ci-dessus sans avoir à choisir une
+     nuance par palier (remplace les anciens rgba(36, 28, 61, X), qui étaient
+     calibrés pour un texte sombre sur fond clair et deviendraient
+     quasi invisibles sur un fond sombre). */
+  --border: rgba(237, 235, 245, 0.12);
+  --text: #edebf5;
+  --text-muted: #9490b0;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  background: var(--navy);
+  overflow: hidden;
+  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+}
+
+/* Twemoji's own recommended sizing (see admin/flagImage.js) — without this,
+   the flag <img> has no intrinsic CSS size and renders at its native (huge)
+   pixel dimensions instead of inline with surrounding text. */
+img.flag-emoji {
+  height: 1em;
+  width: 1em;
+  margin: 0 0.15em 0 0.05em;
+  vertical-align: -0.1em;
+}
+
+#globe-container {
+  position: fixed;
+  inset: 0;
+  right: 0;
+  transition: right 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+body.panel-open #globe-container {
+  right: var(--panel-width, 460px);
+}
+
+.region-indicator {
+  position: fixed;
+  top: 64px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(15, 23, 48, 0.85);
+  border: 1px solid rgba(179, 165, 224, 0.3);
+  border-radius: 20px;
+  padding: 6px 16px;
+  color: #fff;
+  font-size: 13px;
+  letter-spacing: 0.3px;
+  z-index: 5;
+  transition: left 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+body.panel-open .region-indicator {
+  left: calc((100% - var(--panel-width, 460px)) / 2);
+}
+
+.arrow-btn {
+  position: fixed;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: var(--surface-button);
+  border: 1px solid rgba(179, 165, 224, 0.35);
+  color: var(--gold-light);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  z-index: 5;
+  transition: background 0.2s;
+}
+
+.arrow-btn:hover {
+  background: rgba(138, 124, 192, 0.25);
+}
+
+.arrow-prev {
+  left: 54px;
+}
+
+.arrow-next {
+  right: 20px;
+  transition: right 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+body.panel-open .arrow-next {
+  right: calc(var(--panel-width, 460px) + 20px);
+}
+
+.edit-toggle-btn {
+  position: fixed;
+  top: 64px;
+  right: 16px;
+  z-index: 15;
+  background: var(--surface-button);
+  border: 1px solid rgba(179, 165, 224, 0.4);
+  border-radius: 6px;
+  color: var(--gold-light, #b3a5e0);
+  cursor: pointer;
+  font-size: 12px;
+  padding: 8px 14px;
+}
+
+.edit-toggle-btn.active {
+  background: rgba(138, 124, 192, 0.25);
+}
+
+/* Hidden by default; main.js reveals it only while edit mode is unlocked,
+   mirroring production's own display:none-until-editing button. */
+.undo-all-btn {
+  display: none;
+  position: fixed;
+  top: 64px;
+  right: 320px;
+  z-index: 15;
+  background: var(--surface-button);
+  border: 1px solid rgba(224, 118, 106, 0.5);
+  border-radius: 6px;
+  color: #e0736a;
+  cursor: pointer;
+  font-size: 12px;
+  padding: 8px 14px;
+}
+
+.undo-all-btn.visible {
+  display: block;
+}
+
+.undo-all-btn:hover {
+  background: rgba(224, 118, 106, 0.15);
+}
+
+.export-pdf-btn {
+  position: fixed;
+  top: 64px;
+  right: 160px;
+  z-index: 15;
+  background: var(--surface-button);
+  border: 1px solid rgba(179, 165, 224, 0.4);
+  border-radius: 6px;
+  color: var(--gold-light, #b3a5e0);
+  cursor: pointer;
+  font-size: 12px;
+  padding: 8px 14px;
+}
+
+.export-pdf-btn:hover {
+  background: rgba(138, 124, 192, 0.2);
+}
