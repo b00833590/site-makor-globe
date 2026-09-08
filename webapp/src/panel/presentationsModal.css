@@ -80,7 +80,9 @@
 .presentations-modal-header button {
   background: transparent;
   border: none;
-  color: var(--accent, #4a3a82);
+  /* White, not var(--accent) (#4a3a82): the modal surface (--surface) is a dark
+     purple in every brightness mode, so a purple ✕ was near-invisible on it. */
+  color: #ffffff;
   cursor: pointer;
   font-size: 16px;
 }
