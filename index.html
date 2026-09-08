@@ -760,30 +760,35 @@ async function rawDelete(key){
 // Used ONLY by the background live-quote refresh (refreshPortfolioQuotesOnce /
 // refreshOnePortfolioEntry) — never by a direct user add/edit/delete.
 //
-// rawSet()/firestoreSet() calls Firestore .set(), which UPSERTS: it creates the
-// document if it no longer exists. That's correct for a deliberate add or edit,
-// but wrong for an unattended background timer: this tab's in-memory DB is only
-// as fresh as its last full load, so a row deleted (by this tab or a *different*
-// tab/session) since then still sits in this tab's DB — and every ~15 min the
-// refresh cycle would rewrite it with a fresh quote, silently RECREATING a row
-// someone had just deleted. Confirmed live: two portfolio rows kept reappearing
-// after deletion, and their Firestore updatedAt showed a rewrite from a stale
-// tab's auto-refresh cycle each time, not a code path that "recreates" them
-// from any seed/migration.
+// `quote` carries only the freshly fetched { depuis?, ytd? }. This function
+// must avoid two failure modes, both seen live as data "coming back":
 //
-// .update() is the fix: Firestore rejects it when the document doesn't exist,
-// instead of creating it. So a genuinely-deleted row now stays deleted no
-// matter how many stale tabs still have it in memory and keep retrying.
-function updateQuoteFieldsIfStillExists(key, obj){
-  DB[key] = obj; // keep this tab's own display in sync regardless of the remote outcome
+// 1. Recreating a deleted row. This tab's in-memory DB is only as fresh as its
+//    last full load, so a row deleted (here or in another tab/session) still
+//    sits in DB. Writing it back every ~15 min silently resurrects it. Guard:
+//    read the doc first and bail if it's gone.
+//
+// 2. Reverting a field edited elsewhere. Writing this tab's whole cached row
+//    back stomps a stagiaire / date / entreprise someone set in another tab
+//    since this tab loaded — the edit shows, then a refresh cycle from a stale
+//    tab overwrites it. Guard: merge ONLY depuis/ytd onto the CURRENT SERVER
+//    value, never touch the other fields.
+async function updateQuoteFieldsIfStillExists(key, quote){
+  const raw = await fetchRawKey(key);
+  if(raw === null) return; // deleted elsewhere — leave it deleted, never recreate
+  let server;
+  try{ server = JSON.parse(raw); }catch(e){ return; }
+  const merged = { ...server };
+  if(quote.depuis !== undefined) merged.depuis = quote.depuis;
+  if(quote.ytd !== undefined) merged.ytd = quote.ytd;
+  DB[key] = merged; // this tab now matches the freshest data + the new quote
+  if(merged.depuis === server.depuis && merged.ytd === server.ytd) return; // nothing to write
   fsdb.collection(collectionForKey(key)).doc(key).update({
-    value: JSON.stringify(obj),
+    value: JSON.stringify(merged),
     updatedAt: firebase.firestore.FieldValue.serverTimestamp()
   }).catch(()=>{
-    // Expected and silent when the document is gone (deleted elsewhere) — that
-    // is the correct outcome, not a failure to report. Any other transient
-    // error is also safe to ignore here: this is a background refresh, not a
-    // user action, and the next cycle simply tries again.
+    // Silent: the doc was deleted between the read and the write, or a
+    // transient blip — the next cycle retries. Not a user-facing failure.
   });
 }
 
@@ -2328,13 +2333,11 @@ async function refreshPortfolioQuotesOnce(){
     const sinceISO = portfolioSinceISODate(group[0].date);
     const q = await fetchQuoteSince(symbol, sinceISO);
     if(q){
+      const quote = {};
+      if(q.sinceChange !== undefined && q.sinceChange !== null) quote.depuis = Math.round(q.sinceChange*100)/100;
+      if(q.ytdChange !== undefined && q.ytdChange !== null) quote.ytd = Math.round(q.ytdChange*100)/100;
       for(const e of group){
-        const obj = DB[e.key];
-        if(obj){
-          if(q.sinceChange !== undefined && q.sinceChange !== null) obj.depuis = Math.round(q.sinceChange*100)/100;
-          if(q.ytdChange !== undefined && q.ytdChange !== null) obj.ytd = Math.round(q.ytdChange*100)/100;
-          updateQuoteFieldsIfStillExists(e.key, obj); // update, never recreate — see its own comment
-        }
+        if(DB[e.key]) await updateQuoteFieldsIfStillExists(e.key, quote); // merge quote only, never recreate — see its own comment
       }
     }
     await new Promise(r=>setTimeout(r, 200)); // stay gentle on the free API
@@ -2352,11 +2355,11 @@ async function refreshOnePortfolioEntry(key){
   const sinceISO = portfolioSinceISODate(obj.date);
   const q = await fetchQuoteSince(symbol, sinceISO);
   if(!q) return;
-  const fresh = DB[key];
-  if(!fresh) return;
-  if(q.sinceChange !== undefined && q.sinceChange !== null) fresh.depuis = Math.round(q.sinceChange*100)/100;
-  if(q.ytdChange !== undefined && q.ytdChange !== null) fresh.ytd = Math.round(q.ytdChange*100)/100;
-  updateQuoteFieldsIfStillExists(key, fresh); // update, never recreate — see its own comment
+  if(!DB[key]) return;
+  const quote = {};
+  if(q.sinceChange !== undefined && q.sinceChange !== null) quote.depuis = Math.round(q.sinceChange*100)/100;
+  if(q.ytdChange !== undefined && q.ytdChange !== null) quote.ytd = Math.round(q.ytdChange*100)/100;
+  await updateQuoteFieldsIfStillExists(key, quote); // merge quote only, never recreate — see its own comment
   if(state.activeCat === 'entreprises') refreshDataUnlessEditing();
 }
 
