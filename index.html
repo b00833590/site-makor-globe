@@ -479,6 +479,12 @@
     box-shadow:0 8px 24px rgba(0,0,0,.2);z-index:200;opacity:0;transition:opacity .25s ease;pointer-events:none;
   }
   .toast.show{opacity:1;}
+  .update-banner{
+    position:fixed;top:0;left:0;right:0;z-index:300;background:var(--gold,#c99a3a);color:#1a1a2e;
+    text-align:center;padding:9px 12px;font-size:13px;font-weight:600;cursor:pointer;
+    box-shadow:0 2px 10px rgba(0,0,0,.15);display:none;
+  }
+  .update-banner.show{display:block;}
   .loading{padding:60px;text-align:center;color:var(--muted);}
   .edit-note{font-size:11px;color:var(--muted);margin-top:4px;}
   ::-webkit-scrollbar{height:6px;}
@@ -516,6 +522,7 @@
 </div>
 
 <div id="modalRoot"></div>
+<div class="update-banner" id="updateBanner" title="Cliquer pour recharger">🔄 Nouvelle version du site disponible — clique ici pour recharger la page</div>
 <div class="toast" id="toast"></div>
 <!-- Editor toolbar element, structurally separate from every editable field
      it can act on — see the comment above getColorToolbarBtn() in the
@@ -562,6 +569,26 @@ function setMaj(){
   document.getElementById('majTime').textContent = 'MAJ ' + now.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});
 }
 setMaj();
+
+// A tab left open never re-fetches this file on its own — no service worker,
+// no auto-reload — so a fix deployed after someone opened the page silently
+// doesn't reach them until they manually reload. That's repeatedly looked
+// like "the bug isn't actually fixed" when it was: their tab was just stale.
+// Poll this page's own Last-Modified header and surface a banner the moment
+// it changes, rather than leaving that entirely on people to notice.
+let pageLastModified = null;
+async function checkForUpdate(){
+  try{
+    const res = await fetch(location.pathname, {method:'HEAD', cache:'no-store'});
+    const lm = res.headers.get('last-modified');
+    if(!lm) return;
+    if(pageLastModified === null){ pageLastModified = lm; return; }
+    if(lm !== pageLastModified) document.getElementById('updateBanner').classList.add('show');
+  }catch(e){ /* offline or blip — just retry next cycle */ }
+}
+checkForUpdate();
+setInterval(checkForUpdate, 5*60*1000);
+document.getElementById('updateBanner').onclick = () => location.reload();
 
 // ---------- STORAGE LAYER ----------
 // Backed by a Google Sheet through an Apps Script Web App.
@@ -3530,6 +3557,24 @@ document.addEventListener('input', (e) => {
       el.classList.add(n >= 0 ? 'pos' : 'neg');
     }
   }
+});
+
+// Forces every paste into an inline-edit field to land as plain text. Left to
+// its default behavior, contenteditable paste inserts whatever HTML the
+// clipboard carries (common when a stagiaire drafts a point clé in Notes/Word
+// and pastes it in) — that can bring its own block/paragraph structure, which
+// hits the exact same "text silently dropped outside the element focusout
+// reads from" failure as the raw Enter key (see the keydown handler below),
+// plus it can drag in foreign fonts/colors. Reading clipboardData ourselves
+// and inserting it through execCommand('insertText', ...) — the same call the
+// Enter handler already relies on to be lossless — sidesteps all of that in
+// one place for every field, not just bullets.
+document.addEventListener('paste', (e) => {
+  const el = e.target;
+  if(!el.classList || !el.classList.contains('inline-edit')) return;
+  e.preventDefault();
+  const text = (e.clipboardData || window.clipboardData).getData('text/plain').replace(/\r\n?/g, '\n');
+  document.execCommand('insertText', false, text);
 });
 
 document.addEventListener('keydown', (e) => {
