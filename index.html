@@ -856,6 +856,79 @@ function setItemLocal(key, obj){
   rawSet(key, obj); // fire and forget — UI already reflects the change, this just persists it
 }
 
+// Commits a single field (or one bullet) edit WITHOUT stomping the rest of
+// the document. setItemLocal() above always pushes this tab's whole cached
+// object to Firestore — fine for structural changes (add/remove a row), but
+// dangerous for editing one field of an existing document: if this tab's
+// copy of any OTHER field is stale (edited elsewhere, or simply loaded a
+// while ago), that whole-object write silently reverts it back to what this
+// tab last saw. This is the general form of the exact race the portfolio
+// `gen` counter / updateQuoteFieldsIfStillExists() already guard against for
+// portfolio rows — generalized here to every inline-edited field (company
+// bullets/fields, market items, news, weeks, regions...), which had no such
+// protection. `apply(obj)` mutates whichever object it's given (local cache
+// for the instant UI update, then the freshest server copy before writing)
+// so both end up with exactly the same single change applied.
+//
+// A plain get()-then-set() (the original version of this function) only
+// protects against races INSIDE this one browser tab: it reads "the freshest
+// server copy it can see" and writes on top of it, but nothing stops a
+// SECOND stagiaire's tab from doing the exact same read before this tab's
+// write lands — both read the same pre-edit doc, both merge their own change
+// on top of it, and whichever write reaches Firestore last silently discards
+// the other stagiaire's edit. That is the actual rollback: it only shows up
+// once two different people edit the same fiche entreprise around the same
+// time, which is why it never reproduced on a single machine.
+//
+// fsdb.runTransaction() closes that gap: Firestore guarantees the read+write
+// inside it is atomic across ALL clients — if the document changed between
+// this transaction's read and its commit (another tab won the race), it
+// re-runs the whole callback automatically with the now-current document, so
+// this edit always ends up merged on top of the other person's, never
+// clobbering it. commitEditQueues on top just avoids firing many overlapping
+// transactions from THIS tab back-to-back (e.g. quickly editing two bullets
+// on the same company) — a same-tab optimization, not what makes this safe.
+const commitEditQueues = new Map();
+function commitFieldEdit(key, apply){
+  if(state.isEditing){
+    undoStack.push({ key, prev: DB[key] !== undefined ? JSON.parse(JSON.stringify(DB[key])) : undefined });
+  }
+  const local = DB[key] ? { ...DB[key] } : {};
+  apply(local);
+  DB[key] = local; // instant UI feedback, same as setItemLocal
+
+  const isPortfolio = key.indexOf('mkg:portfolio:') === 0;
+  const docRef = fsdb.collection(collectionForKey(key)).doc(key);
+  const prevInQueue = commitEditQueues.get(key) || Promise.resolve();
+  const thisWrite = prevInQueue.then(async () => {
+    try{
+      let merged = null;
+      await fsdb.runTransaction(async (transaction) => {
+        const snap = await transaction.get(docRef);
+        let server = null;
+        let existingGen = 0;
+        if(snap.exists){
+          const data = snap.data();
+          try{ server = JSON.parse(data.value); }catch(e){ /* corrupt row on server, fall back to local */ }
+          existingGen = data.gen || 0;
+        }
+        merged = server ? { ...server } : { ...local };
+        apply(merged); // re-apply the SAME change on top of whichever copy is current when this attempt runs
+        const payload = { value: JSON.stringify(merged), updatedAt: firebase.firestore.FieldValue.serverTimestamp() };
+        if(isPortfolio) payload.gen = existingGen + 1; // same convention as firestoreSet()/nextPortfolioGen()
+        transaction.set(docRef, payload);
+      });
+      DB[key] = merged; // this tab now matches the freshest data + our own edit
+      connectionWarningShown = false;
+    }catch(e){
+      console.error('sync failed', e);
+      warnConnectionIssue('⚠️ Sauvegarde en ligne échouée — vérifie ta connexion');
+    }
+  });
+  commitEditQueues.set(key, thisWrite);
+  return thisWrite;
+}
+
 function deleteItemLocal(key){
   if(state.isEditing && DB[key] !== undefined){
     undoStack.push({ key, prev: JSON.parse(JSON.stringify(DB[key])) });
@@ -2065,11 +2138,11 @@ function renderCompanies(){
   c.querySelectorAll('[data-del-bullet]').forEach(el=>{
     el.onclick = (e) => {
       e.stopPropagation();
-      const [key, idx] = el.getAttribute('data-del-bullet').split('|');
+      const [key, idxStr] = el.getAttribute('data-del-bullet').split('|');
       const obj = DB[key];
       if(!obj) return;
-      obj.bullets.splice(parseInt(idx,10), 1);
-      setItemLocal(key, obj);
+      const idx = parseInt(idxStr,10);
+      commitFieldEdit(key, o => { if(Array.isArray(o.bullets)) o.bullets.splice(idx, 1); });
       refreshData();
     };
   });
@@ -2078,9 +2151,7 @@ function renderCompanies(){
       const key = el.getAttribute('data-add-bullet');
       const obj = DB[key];
       if(!obj) return;
-      obj.bullets = obj.bullets || [];
-      obj.bullets.push('Nouveau point clé');
-      setItemLocal(key, obj);
+      commitFieldEdit(key, o => { o.bullets = o.bullets || []; o.bullets.push('Nouveau point clé'); });
       refreshData();
       setTimeout(()=>{
         const els = document.querySelectorAll(`[data-key="${CSS.escape(key)}"][data-field="bullet"]`);
@@ -3301,8 +3372,7 @@ document.addEventListener('focusout', (e) => {
     if(rec){
       const newLabel = (el.innerText !== undefined ? el.innerText : el.textContent).trim();
       if(newLabel && rec.label !== newLabel){
-        rec.label = newLabel;
-        setItemLocal(el.dataset.regionKey, rec);
+        commitFieldEdit(el.dataset.regionKey, o => { o.label = newLabel; });
         showToast('Région renommée');
       }
     }
@@ -3337,8 +3407,7 @@ document.addEventListener('focusout', (e) => {
   if(field === 'bullet'){
     const idx = parseInt(el.dataset.bulletIndex, 10);
     if(obj.bullets && obj.bullets[idx] !== raw){
-      obj.bullets[idx] = raw;
-      setItemLocal(key, obj);
+      commitFieldEdit(key, o => { if(!Array.isArray(o.bullets)) o.bullets = []; o.bullets[idx] = raw; });
     }
     return;
   }
@@ -3348,8 +3417,7 @@ document.addEventListener('focusout', (e) => {
     newVal = parseFloat(raw.replace(',','.')) || 0;
   }
   if(obj[field] !== newVal){
-    obj[field] = newVal;
-    setItemLocal(key, obj);
+    commitFieldEdit(key, o => { o[field] = newVal; });
     if(field === 'label'){
       const w = state.weeks.find(w=>w.id === key.replace('mkg:week:',''));
       if(w) w.label = newVal;
