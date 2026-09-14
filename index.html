@@ -2197,7 +2197,7 @@ function renderCompanies(){
           ${(it.bullets||[]).map((b,i)=>`
             <div class="bullet-row">
               <span class="bullet-triangle">▶</span>
-              <span class="bullet-text inline-edit" data-key="${it.key}" data-field="bullet" data-bullet-index="${i}" data-colorable="1" data-colorable-field="bullet-${i}" ${ce()} ${colorStyleAttr(it,'bullet-'+i)}>${escapeHtml(b)}</span>
+              <div class="bullet-text inline-edit" data-key="${it.key}" data-field="bullet" data-bullet-index="${i}" data-colorable="1" data-colorable-field="bullet-${i}" ${ce()} ${colorStyleAttr(it,'bullet-'+i)}>${escapeHtml(b)}</div>
               ${state.isEditing?`<span class="del-btn" data-del-bullet="${it.key}|${i}">✕</span>`:''}
             </div>`).join('')}
           ${state.isEditing?`<div class="bullet-add"><button class="btn btn-ghost btn-sm" data-add-bullet="${it.key}">+ Point clé</button></div>`:''}
@@ -3483,7 +3483,18 @@ document.addEventListener('focusout', (e) => {
   if(field === 'bullet'){
     const idx = parseInt(el.dataset.bulletIndex, 10);
     if(obj.bullets && obj.bullets[idx] !== raw){
-      commitFieldEdit(key, o => { if(!Array.isArray(o.bullets)) o.bullets = []; o.bullets[idx] = raw; });
+      // Bounds-checked against the FRESH server array (read inside the
+      // transaction below, not this tab's possibly-stale `obj.bullets`):
+      // bullets are matched by array position, no stable id, so if another
+      // device deleted an earlier bullet on this same company between this
+      // tab's last load and this commit, idx can now land past the end of
+      // the current array. Writing bullets[idx] past the end would silently
+      // corrupt the array (a `null` hole once JSON-stringified) instead of
+      // just failing to find the bullet — skip the write in that case.
+      commitFieldEdit(key, o => {
+        if(!Array.isArray(o.bullets)) o.bullets = [];
+        if(idx >= 0 && idx < o.bullets.length) o.bullets[idx] = raw;
+      });
     }
     return;
   }
@@ -3524,6 +3535,21 @@ document.addEventListener('input', (e) => {
 document.addEventListener('keydown', (e) => {
   const el = e.target;
   if(!el.classList || !el.classList.contains('inline-edit')) return;
+  if(e.key === 'Enter' && el.dataset.field === 'bullet'){
+    // Points clés is the one multi-line inline-edit field built on an inline
+    // element (a <span>/<div> flex item, not a <p> like description) —
+    // contenteditable's native "what does Enter insert" behavior is notorious
+    // for being inconsistent across browsers (a <div>, a <p>, a <br>, or
+    // nothing at all depending on the surrounding content model), and any of
+    // those can silently split part of the text out of the element the
+    // focusout handler reads from, dropping it. Forcing a plain "\n" text
+    // insertion via execCommand sidesteps that entirely — every browser
+    // inserts the exact same literal character, and it still goes through
+    // contenteditable's own undo stack (Ctrl+Z stays field-local).
+    e.preventDefault();
+    document.execCommand('insertText', false, '\n');
+    return;
+  }
   // Enter commits single-line fields instead of inserting a newline (description/body stay multi-line)
   if(e.key === 'Enter' && el.dataset.field !== 'description' && el.dataset.field !== 'body' && el.dataset.field !== 'bullet'){
     e.preventDefault();
