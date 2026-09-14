@@ -636,6 +636,37 @@ let DB = {}; // key -> parsed object, held in memory after the initial load
 let undoStack = [];      // stack of {key, prev} recorded during the current editing session
 let sessionSnapshot = null; // deep copy of DB taken when entering edit mode, for "annuler tout"
 
+// Firestore's free daily READ quota (50k) turned out to be the actual
+// bottleneck, not writes: loadAllFromServerOnce() below re-reads every single
+// document in the collection on every page load — completely ordinary usage
+// (a handful of people reloading through a workday, more so while
+// troubleshooting) burns through 50k fast. Caching the last CONFIRMED-good
+// snapshot in localStorage means a reload inside the cache window costs zero
+// Firestore reads. The tradeoff is up to DB_CACHE_TTL_MS of staleness, which
+// this app already has by nature (no realtime listeners) and "Actualiser"
+// exists to override on demand. Only ever written from data Firestore has
+// actually confirmed — never the optimistic local state — so a write blocked
+// by quota (or any other failure) can't get cached as if it had saved.
+const DB_CACHE_KEY = 'mkg:db-cache-v1';
+const DB_CACHE_TTL_MS = 10 * 60 * 1000;
+function readDbCache(){
+  try{
+    const raw = localStorage.getItem(DB_CACHE_KEY);
+    if(!raw) return null;
+    const { at, data } = JSON.parse(raw);
+    if(!data || Date.now() - at > DB_CACHE_TTL_MS) return null;
+    return data;
+  }catch(e){ return null; }
+}
+function writeDbCache(data){
+  try{ localStorage.setItem(DB_CACHE_KEY, JSON.stringify({ at: Date.now(), data })); }catch(e){ /* storage full/blocked — best effort */ }
+}
+let cacheSyncTimer = null;
+function scheduleCacheSync(){
+  clearTimeout(cacheSyncTimer);
+  cacheSyncTimer = setTimeout(()=>writeDbCache(DB), 1000);
+}
+
 async function loadAllFromServerOnce(){
   try{
     const snap = await fsdb.collection(MAIN_COLLECTION).get();
@@ -768,6 +799,7 @@ async function rawSet(key, obj){
   try{
     await firestoreSet(key, JSON.stringify(obj));
     connectionWarningShown = false;
+    scheduleCacheSync();
   }catch(e){
     console.error('sync failed', e);
     warnConnectionIssue('⚠️ Sauvegarde en ligne échouée — vérifie ta connexion');
@@ -779,6 +811,7 @@ async function rawSet(key, obj){
 async function rawSetAwaited(key, obj){
   try{
     await firestoreSet(key, JSON.stringify(obj));
+    scheduleCacheSync();
     return true;
   }catch(e){ console.error('sync failed', e); return false; }
 }
@@ -794,6 +827,7 @@ async function rawDelete(key){
   try{
     await firestoreDelete(key);
     connectionWarningShown = false;
+    scheduleCacheSync();
   }catch(e){
     console.error('sync failed', e);
     warnConnectionIssue('⚠️ Suppression en ligne échouée — vérifie ta connexion');
@@ -947,6 +981,7 @@ function commitFieldEdit(key, apply){
       });
       DB[key] = merged; // this tab now matches the freshest data + our own edit
       connectionWarningShown = false;
+      scheduleCacheSync();
     }catch(e){
       console.error('sync failed', e);
       warnConnectionIssue('⚠️ Sauvegarde en ligne échouée — vérifie ta connexion');
@@ -2511,6 +2546,7 @@ function portfolioEntrySymbol(e){
 }
 
 async function refreshPortfolioQuotesOnce(){
+  if(document.hidden) return; // backgrounded/minimized tab — skip this cycle, no point spending Firestore reads on a screen nobody's looking at
   const entries = loadPortfolioEntries().filter(e => portfolioEntrySymbol(e));
   // Fetch once per unique (symbol, since-date): the global portfolio view holds
   // the same ticker many times over (long + short lines, the same name across
@@ -3306,6 +3342,7 @@ async function manualRefresh(){
   if(fresh && !(fetchedEmpty && hadData)){
     // Safe to apply: either we got real data, or both server and local are legitimately empty.
     DB = fresh;
+    writeDbCache(DB); // explicit "Actualiser" always hits the network — reset the cache clock too
     sessionSnapshot = state.isEditing ? JSON.parse(JSON.stringify(DB)) : null;
     undoStack = [];
     refreshData();
@@ -4930,9 +4967,15 @@ function applyDeepLinkFromUrl(){
 
 async function init(){
   document.getElementById('container').innerHTML = '<div class="loading">Chargement...</div>';
-  const fresh = await loadAllFromServer();
-  DB = fresh || {}; // if the very first load fails, start empty rather than hang forever
-  if(!fresh) showToast('⚠️ Connexion au serveur impossible — vérifie le déploiement Apps Script');
+  let fresh = readDbCache();
+  if(fresh){
+    DB = fresh; // served from cache — zero Firestore reads for this load
+  } else {
+    fresh = await loadAllFromServer();
+    DB = fresh || {}; // if the very first load fails, start empty rather than hang forever
+    if(!fresh) showToast('⚠️ Connexion au serveur impossible — vérifie le déploiement Apps Script');
+    else writeDbCache(DB);
+  }
 
   seedIfNeeded();
   migrateIaFintech();
