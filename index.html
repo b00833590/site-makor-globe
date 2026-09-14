@@ -1715,6 +1715,59 @@ const MARKET_TICKERS = {
   'GBP': { symbol:'GBPUSD=X', invert:true },
 };
 
+// Exchange-local timezone per index name — used only to figure out "what
+// calendar day is it right now, at THIS exchange" when picking the reference
+// Friday for the Semaine column (see mostRecentFridayBefore() below). A UTC
+// or browser-local "today" can be a different calendar day than the
+// exchange's own today near midnight, which on the wrong day of the week
+// would point the whole calculation at the wrong Friday. Unlisted names
+// (custom indices added with a manual yahooSymbol) fall back to UTC.
+const MARKET_TIMEZONES = {
+  'S&P/ASX 200': 'Australia/Sydney',
+  'KOSPI': 'Asia/Seoul', 'KOSPI 200': 'Asia/Seoul',
+  'Nikkei 225': 'Asia/Tokyo',
+  'CSI 300': 'Asia/Shanghai',
+  'Nifty 50': 'Asia/Kolkata',
+  'IBOVESPA': 'America/Sao_Paulo',
+  'FTSE 100': 'Europe/London',
+  'Euro Stoxx 50': 'Europe/Paris',
+  'DAX 40': 'Europe/Berlin',
+  'CAC 40': 'Europe/Paris',
+  'Euronext 100': 'Europe/Paris',
+  'S&P/TSX 60': 'America/Toronto', 'S&P TSX 60': 'America/Toronto',
+  'S&P 500': 'America/New_York',
+  'Dow Jones': 'America/New_York',
+  'Nasdaq': 'America/New_York',
+};
+
+// "Today", as a YYYY-MM-DD calendar date, in a given exchange's own timezone.
+function exchangeTodayISO(name){
+  const zone = MARKET_TIMEZONES[name] || 'UTC';
+  const parts = new Intl.DateTimeFormat('en-CA', { timeZone: zone, year:'numeric', month:'2-digit', day:'2-digit' }).formatToParts(new Date());
+  const get = t => parts.find(p => p.type === t).value;
+  return `${get('year')}-${get('month')}-${get('day')}`;
+}
+
+// The calendar date (YYYY-MM-DD) of the closest Friday strictly before `dateStr`.
+// Calendar-based on purpose: if that Friday turns out to be a market holiday,
+// closeOnOrBefore() below falls back to the last real trading day at/before
+// it (e.g. Thursday's close) instead of us guessing a different Friday.
+function mostRecentFridayBefore(dateStr){
+  const d = new Date(dateStr + 'T00:00:00Z');
+  do { d.setUTCDate(d.getUTCDate() - 1); } while(d.getUTCDay() !== 5);
+  return isoDateFromMs(d.getTime());
+}
+
+// Latest trading-day close at or before targetDateStr, from a list of
+// {date, close} points sorted ascending by date (as fetchQuoteHistory returns).
+function closeOnOrBefore(points, targetDateStr){
+  let result = null;
+  for(const p of points){
+    if(p.date <= targetDateStr) result = p; else break;
+  }
+  return result;
+}
+
 // Returns the quote object on success, or { error: <message> } on failure —
 // the error string is kept (was: swallowed, returned as null) so refreshMarketQuotes
 // can tell "this one symbol is unknown" apart from "the whole service is down".
@@ -1784,20 +1837,43 @@ async function refreshMarketQuotes(){
     if(q && q.error){
       if(isQuoteServiceDown(q.error)){ serviceDown = true; break; }
       failed.push({ name: it.name, reason: 'introuvable' });
-    } else if(!q || q.value == null || q.weekChange == null || q.ytdChange == null){
-      // Partial payload — writing it would push NaN into weekChange/ytdChange.
+    } else if(!q || q.value == null){
+      // Partial payload — writing it would push NaN into value.
       failed.push({ name: it.name, reason: 'données incomplètes' });
     } else {
-      let { value, weekChange, ytdChange } = q;
-      if(map.invert){ value = 1/value; weekChange = -weekChange; ytdChange = -ytdChange; }
-      const key = `mkg:market:${state.activeWeek}:${it.id}`;
-      const obj = DB[key];
-      obj.weekChange = Math.round(weekChange*100)/100;
-      obj.ytdChange = Math.round(ytdChange*100)/100;
-      obj.value = formatMarketValue(obj.value, value);
-      setItemLocal(key, obj);
-      if(map.note) notes.add(map.note);
-      updated.push(it.name);
+      // Semaine/YTD are NOT taken from the API's own weekChange/ytdChange —
+      // there's no guarantee those match "vendredi précédent -> dernier cours
+      // disponible" (they could be a rolling 7-day change, a different
+      // session count, etc.). Instead: pull real daily closes and compute both
+      // percentages ourselves from the exact reference dates, so the result
+      // is correct on any day of the week, including the Monday case where
+      // "last Friday" must stay the week before (never today, never last week).
+      const todayISO = exchangeTodayISO(it.name);
+      const fridayCalendar = mostRecentFridayBefore(todayISO);
+      const prevYearEndISO = (parseInt(todayISO.slice(0,4),10) - 1) + '-12-31';
+      const historySinceISO = (parseInt(todayISO.slice(0,4),10) - 1) + '-12-20'; // comfortably before prevYearEndISO, covers holiday shifts
+
+      const hist = await fetchQuoteHistory(map.symbol, historySinceISO);
+      const points = hist && Array.isArray(hist.points) ? hist.points : null;
+      const fridayPoint = points && closeOnOrBefore(points, fridayCalendar);
+      const yearEndPoint = points && closeOnOrBefore(points, prevYearEndISO);
+
+      if(!fridayPoint || !yearEndPoint){
+        failed.push({ name: it.name, reason: 'historique de cours indisponible' });
+      } else {
+        let value = q.value, fridayClose = fridayPoint.close, yearEndClose = yearEndPoint.close;
+        if(map.invert){ value = 1/value; fridayClose = 1/fridayClose; yearEndClose = 1/yearEndClose; }
+        const weekChange = (value / fridayClose - 1) * 100;
+        const ytdChange = (value / yearEndClose - 1) * 100;
+        const key = `mkg:market:${state.activeWeek}:${it.id}`;
+        const obj = DB[key];
+        obj.weekChange = Math.round(weekChange*100)/100;
+        obj.ytdChange = Math.round(ytdChange*100)/100;
+        obj.value = formatMarketValue(obj.value, value);
+        setItemLocal(key, obj);
+        if(map.note) notes.add(map.note);
+        updated.push(it.name);
+      }
     }
 
     if(i % 3 === 0) showToast(`Actualisation des cours... (${i+1}/${withTicker.length})`);
