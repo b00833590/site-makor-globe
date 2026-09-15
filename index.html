@@ -292,8 +292,15 @@
   .bullet-row:last-of-type{border-bottom:none;}
   .bullet-triangle{color:var(--gold);font-size:11px;line-height:1.7;flex-shrink:0;margin-top:2px;}
   .bullet-text{flex:1;font-size:13.5px;line-height:1.7;color:#3a4051;white-space:pre-line;}
-  .bullet-add{margin-top:8px;}
+  .bullet-add{margin-top:8px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
   .bullet-row .del-btn{flex-shrink:0;font-size:13px;line-height:1.7;margin-top:2px;}
+  .onepager-chip{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--text);
+    background:#f4f5f9;border:1px solid var(--line);border-radius:8px;padding:5px 10px;cursor:pointer;}
+  .onepager-chip:hover{border-color:var(--gold);}
+  .onepager-actions{display:inline-flex;gap:4px;}
+  .onepager-actions button{background:transparent;border:none;color:var(--muted);font-size:11px;cursor:pointer;
+    text-decoration:underline;padding:0;}
+  .onepager-actions button:hover{color:var(--gold);}
 
   /* Suivi des performances du portefeuille */
   .portfolio-section-title{font-family:Georgia,'Times New Roman',serif;font-size:24px;margin:36px 0 16px;}
@@ -1366,11 +1373,12 @@ function selectAllText(el){
   sel.addRange(range);
 }
 
-function pageActionsHTML(addLabel, addBtnId){
+function pageActionsHTML(addLabel, addBtnId, extraButtonsHTML){
   return `<div class="add-bar">
     ${state.isEditing ? `<button class="btn btn-primary btn-sm" id="${addBtnId}">+ ${addLabel}</button>` : ''}
     ${state.isEditing ? `<button class="btn btn-ghost btn-sm" id="dupWeekBtn">⧉ Dupliquer cette semaine</button>` : ''}
     <button class="btn btn-ghost btn-sm" id="exportPdfBtn">📄 Exporter en PDF</button>
+    ${extraButtonsHTML||''}
   </div>`;
 }
 
@@ -2194,6 +2202,21 @@ function growthClass(v){
   return n >= 0 ? 'pos' : 'neg';
 }
 
+// Shared between renderCompanies (display order) and groupOnePagers (merge
+// order) so the two can never drift apart — the grouped PDF must always
+// follow the exact same order the cards are shown in.
+const COMPANY_REGION_ORDER = ['ASIE', 'BRICS', 'EUROPE', 'AMÉRIQUE DU NORD'];
+function sortCompaniesForDisplay(items){
+  return [...items].sort((a,b)=>{
+    if(!a.name && !b.name) return 0;
+    if(!a.name) return 1; // non-company items (legacy portfolio blobs) sink to the bottom
+    if(!b.name) return -1;
+    const ai = COMPANY_REGION_ORDER.indexOf((a.region||'').toUpperCase());
+    const bi = COMPANY_REGION_ORDER.indexOf((b.region||'').toUpperCase());
+    return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi);
+  });
+}
+
 function renderCompanies(){
   const c = document.getElementById('container');
   const week = state.weeks.find(w=>w.id===state.activeWeek);
@@ -2202,17 +2225,10 @@ function renderCompanies(){
     <div class="page-title"><h2>Entreprises à suivre</h2><span class="badge">${week ? week.label : ''}</span></div>
     <hr>`;
 
-  html += pageActionsHTML('Ajouter une entreprise', 'addCompanyBtn');
+  html += pageActionsHTML('Ajouter une entreprise', 'addCompanyBtn',
+    `<button class="btn btn-ghost btn-sm" id="groupOnePagersBtn">📎 Regrouper les One-Pagers</button>`);
 
-  const COMPANY_REGION_ORDER = ['ASIE', 'BRICS', 'EUROPE', 'AMÉRIQUE DU NORD'];
-  const sortedItems = [...state.contentItems].sort((a,b)=>{
-    if(!a.name && !b.name) return 0;
-    if(!a.name) return 1; // non-company items (legacy portfolio blobs) sink to the bottom
-    if(!b.name) return -1;
-    const ai = COMPANY_REGION_ORDER.indexOf((a.region||'').toUpperCase());
-    const bi = COMPANY_REGION_ORDER.indexOf((b.region||'').toUpperCase());
-    return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi);
-  });
+  const sortedItems = sortCompaniesForDisplay(state.contentItems);
 
   if(state.contentItems.length === 0){
     html += `<div class="empty"><div class="big">🏢</div>Rien à afficher pour cette semaine.${state.isEditing ? '' : ' Passe en mode édition pour en ajouter.'}</div>`;
@@ -2262,7 +2278,7 @@ function renderCompanies(){
               <div class="bullet-text inline-edit" data-key="${it.key}" data-field="bullet" data-bullet-index="${i}" data-colorable="1" data-colorable-field="bullet-${i}" ${ce()} ${colorStyleAttr(it,'bullet-'+i)}>${escapeHtml(b)}</div>
               ${state.isEditing?`<span class="del-btn" data-del-bullet="${it.key}|${i}">✕</span>`:''}
             </div>`).join('')}
-          ${state.isEditing?`<div class="bullet-add"><button class="btn btn-ghost btn-sm" data-add-bullet="${it.key}">+ Point clé</button></div>`:''}
+          ${(state.isEditing || it.onePager)?`<div class="bullet-add">${state.isEditing?`<button class="btn btn-ghost btn-sm" data-add-bullet="${it.key}">+ Point clé</button>`:''}${onePagerControlHTML(it)}</div>`:''}
         </div>
       </div>`;
     });
@@ -2307,6 +2323,9 @@ function renderCompanies(){
   c.querySelectorAll('[data-compare-toggle]').forEach(el=>{
     el.onclick = (e) => { e.stopPropagation(); toggleCompareSelection(el.getAttribute('data-compare-toggle')); };
   });
+  wireOnePagerControls(c);
+  const groupBtn = document.getElementById('groupOnePagersBtn');
+  if(groupBtn) groupBtn.onclick = groupOnePagers;
   renderCompareBar();
   wirePortfolioSection(c);
 }
@@ -3073,6 +3092,318 @@ async function handlePresentationFilesSelected(e){
   } else {
     showToast(`⚠️ ${succeeded}/${files.length} ajoutée(s) — échec : ${failures.join(', ')}`);
   }
+}
+
+// ---------- One-Pagers (fiche entreprise) ----------
+// Reuses the exact same chunked-base64-in-Firestore mechanism as Présentations
+// above (mkg:pdfchunk:<id>:<n> docs in the mkg_pdfchunks collection) — already
+// proven, already excluded from the bulk load, already covered by
+// firestore.rules — instead of inventing a new storage path. Metadata lives
+// on the company object itself (it.onePager), written through
+// commitFieldEdit so it gets the same anti-rollback Firestore transaction as
+// every other company field (bullets, name, etc.).
+const ONEPAGER_MAX_FILE_SIZE = 15 * 1024 * 1024; // 15 Mo, matches Présentations
+const ONEPAGER_MIME_BY_FORMAT = {
+  pdf: 'application/pdf',
+  pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+};
+function onePagerFormatFromFile(file){
+  if(file.type === ONEPAGER_MIME_BY_FORMAT.pdf || /\.pdf$/i.test(file.name)) return 'pdf';
+  if(file.type === ONEPAGER_MIME_BY_FORMAT.pptx || /\.pptx$/i.test(file.name)) return 'pptx';
+  return null;
+}
+
+// Reconstructed One-Pager bytes never change for a given (id, uploadedAt)
+// pair, so no TTL is needed — a replace naturally invalidates by getting a
+// new uploadedAt. Kept in IndexedDB rather than localStorage: files here can
+// be several MB, well past localStorage's ~5-10 Mo per-origin budget — and
+// without this cache, "Regrouper les One-Pagers" re-reading every company's
+// chunks on every attempt would be exactly the kind of uncached Firestore
+// read pattern that exhausted the free daily quota once already.
+const ONEPAGER_DB_NAME = 'mkg-onepager-cache';
+const ONEPAGER_STORE = 'files';
+let onePagerDbPromise = null;
+function openOnePagerDb(){
+  if(!onePagerDbPromise){
+    onePagerDbPromise = new Promise((resolve, reject) => {
+      const req = indexedDB.open(ONEPAGER_DB_NAME, 1);
+      req.onupgradeneeded = () => req.result.createObjectStore(ONEPAGER_STORE);
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+    });
+  }
+  return onePagerDbPromise;
+}
+async function getCachedOnePagerBytes(cacheKey){
+  try{
+    const db = await openOnePagerDb();
+    return await new Promise((resolve) => {
+      const req = db.transaction(ONEPAGER_STORE, 'readonly').objectStore(ONEPAGER_STORE).get(cacheKey);
+      req.onsuccess = () => resolve(req.result || null);
+      req.onerror = () => resolve(null);
+    });
+  }catch(e){ return null; }
+}
+function setCachedOnePagerBytes(cacheKey, bytes){
+  // Fire-and-forget: a failed cache write just costs a re-fetch next time,
+  // never a correctness problem — the server-confirmed data is what matters.
+  openOnePagerDb().then(db => {
+    db.transaction(ONEPAGER_STORE, 'readwrite').objectStore(ONEPAGER_STORE).put(bytes, cacheKey);
+  }).catch(()=>{});
+}
+
+// Uploads (or replaces) a company's One-Pager. New chunks are written FIRST,
+// metadata updated only once every chunk is confirmed, and any PREVIOUS
+// file's chunks are deleted LAST — so the metadata never points at a
+// half-written upload, and there is never a moment where two versions could
+// both be picked up by the weekly merge (see spec: never two versions of the
+// same One-Pager in the final PDF).
+async function uploadOnePagerFile(companyKey, file){
+  const format = onePagerFormatFromFile(file);
+  if(!format) return { ok:false, error:'Format non accepté — seuls PDF et PPTX sont acceptés.' };
+  if(file.size > ONEPAGER_MAX_FILE_SIZE) return { ok:false, error:'Fichier trop volumineux (max 15 Mo).' };
+
+  const company = DB[companyKey];
+  if(!company) return { ok:false, error:"Cette entreprise n'existe plus." };
+  const previousOnePager = company.onePager;
+
+  let arrayBuffer, base64;
+  try{
+    arrayBuffer = await file.arrayBuffer();
+    base64 = arrayBufferToBase64(arrayBuffer);
+  }catch(e){
+    console.error('One-Pager read failed', e);
+    return { ok:false, error:'Fichier invalide ou illisible.' };
+  }
+  const chunks = splitIntoChunks(base64, PRESENTATION_CHUNK_SIZE);
+
+  const id = 'op-' + uid();
+  const writtenChunkKeys = [];
+  for(let i=0;i<chunks.length;i++){
+    const key = `${PDF_PREFIX_CLIENT}${id}:${i}`;
+    const ok = await rawSetAwaited(key, chunks[i]);
+    if(!ok){
+      for(const writtenKey of writtenChunkKeys) await rawDelete(writtenKey);
+      return { ok:false, error:`Échec à l'envoi du morceau ${i+1}/${chunks.length} — vérifie ta connexion et réessaie.` };
+    }
+    writtenChunkKeys.push(key);
+  }
+
+  const onePager = {
+    id, fileName: file.name, mimeType: ONEPAGER_MIME_BY_FORMAT[format], format,
+    size: file.size, chunkCount: chunks.length, uploadedAt: Date.now(),
+  };
+  await commitFieldEdit(companyKey, o => { o.onePager = onePager; });
+  setCachedOnePagerBytes(id + '@' + onePager.uploadedAt, new Uint8Array(arrayBuffer));
+
+  if(previousOnePager && previousOnePager.id){
+    const oldChunkKeys = await fetchRemoteKeys(`${PDF_PREFIX_CLIENT}${previousOnePager.id}:`);
+    oldChunkKeys.forEach(k => deleteItemLocal(k));
+  }
+  return { ok:true };
+}
+
+// Reconstructs a company's One-Pager bytes — from the IndexedDB cache when
+// available, else by re-fetching and reassembling every chunk from
+// Firestore, mirroring openPresentation()'s own reconstruction logic but
+// returning raw bytes instead of opening a tab (used by both "open this
+// file" and the weekly merge).
+async function fetchOnePagerBytes(onePager, onProgress){
+  const cacheKey = onePager.id + '@' + onePager.uploadedAt;
+  const cached = await getCachedOnePagerBytes(cacheKey);
+  if(cached) return cached;
+
+  const chunkKeys = await fetchRemoteKeys(`${PDF_PREFIX_CLIENT}${onePager.id}:`);
+  if(!chunkKeys || chunkKeys.length === 0) return null;
+  chunkKeys.sort((a,b)=> parseInt(a.split(':').pop(),10) - parseInt(b.split(':').pop(),10));
+
+  const parts = [];
+  for(let i=0;i<chunkKeys.length;i++){
+    const raw = await fetchChunkWithRetry(chunkKeys[i], 3);
+    if(raw === null) return null;
+    let val = raw;
+    try{ val = JSON.parse(raw); }catch(e){ /* was stored as a plain string */ }
+    parts.push(val);
+    if(onProgress) onProgress(i+1, chunkKeys.length);
+  }
+  const b64 = parts.join('');
+  let bytes;
+  try{
+    const byteChars = atob(b64);
+    bytes = new Uint8Array(byteChars.length);
+    for(let i=0;i<byteChars.length;i++) bytes[i] = byteChars.charCodeAt(i);
+  }catch(e){ console.error('One-Pager reassembly failed', e); return null; }
+  setCachedOnePagerBytes(cacheKey, bytes);
+  return bytes;
+}
+
+async function openOnePager(companyKey){
+  const company = DB[companyKey];
+  const onePager = company && company.onePager;
+  if(!onePager) return;
+  showToast(`Ouverture de "${onePager.fileName}"...`);
+  const bytes = await fetchOnePagerBytes(onePager);
+  if(!bytes){ showToast('⚠️ Impossible de récupérer ce One-Pager — réessaie'); return; }
+  const blob = new Blob([bytes], { type: onePager.mimeType });
+  const url = URL.createObjectURL(blob);
+  window.open(url, '_blank', 'noopener');
+}
+
+async function deleteOnePager(companyKey){
+  const company = DB[companyKey];
+  const onePager = company && company.onePager;
+  if(!onePager) return;
+  if(!confirm('Supprimer ce One-Pager ?')) return;
+  showToast('Suppression en cours...');
+  const chunkKeys = await fetchRemoteKeys(`${PDF_PREFIX_CLIENT}${onePager.id}:`);
+  chunkKeys.forEach(k => deleteItemLocal(k));
+  await commitFieldEdit(companyKey, o => { delete o.onePager; });
+  showToast('One-Pager supprimé');
+  refreshData();
+}
+
+function onePagerControlHTML(it){
+  const op = it.onePager;
+  if(!op){
+    return state.isEditing ? `<button class="btn btn-ghost btn-sm" data-add-onepager="${it.key}">📎 Ajouter le One-Pager</button>` : '';
+  }
+  const actions = state.isEditing ? `<span class="onepager-actions">
+      <button data-replace-onepager="${it.key}">Remplacer</button>
+      <button data-del-onepager="${it.key}">Supprimer</button>
+    </span>` : '';
+  return `<span class="onepager-chip" data-open-onepager="${it.key}" title="Ouvrir ${escapeAttr(op.fileName)}">📎 ${escapeHtml(op.fileName)}</span>${actions}`;
+}
+
+let onePagerFileInputEl = null;
+let onePagerFileInputTargetKey = null;
+function getOnePagerFileInput(){
+  if(!onePagerFileInputEl){
+    onePagerFileInputEl = document.createElement('input');
+    onePagerFileInputEl.type = 'file';
+    onePagerFileInputEl.accept = '.pdf,.pptx,application/pdf,application/vnd.openxmlformats-officedocument.presentationml.presentation';
+    onePagerFileInputEl.style.display = 'none';
+    onePagerFileInputEl.addEventListener('change', handleOnePagerFileSelected);
+    document.body.appendChild(onePagerFileInputEl);
+  }
+  return onePagerFileInputEl;
+}
+async function handleOnePagerFileSelected(e){
+  const file = (e.target.files || [])[0];
+  e.target.value = ''; // reset so picking the exact same file again still fires 'change'
+  const companyKey = onePagerFileInputTargetKey;
+  if(!file || !companyKey) return;
+  showToast(`Envoi de "${file.name}"...`);
+  const result = await uploadOnePagerFile(companyKey, file);
+  if(result.ok){ showToast('One-Pager ajouté ✓'); refreshData(); }
+  else showToast(`⚠️ ${result.error}`);
+}
+function wireOnePagerControls(container){
+  container.querySelectorAll('[data-add-onepager],[data-replace-onepager]').forEach(el=>{
+    el.onclick = (e) => {
+      e.stopPropagation();
+      onePagerFileInputTargetKey = el.getAttribute('data-add-onepager') || el.getAttribute('data-replace-onepager');
+      getOnePagerFileInput().click();
+    };
+  });
+  container.querySelectorAll('[data-open-onepager]').forEach(el=>{
+    el.onclick = (e) => { e.stopPropagation(); openOnePager(el.getAttribute('data-open-onepager')); };
+  });
+  container.querySelectorAll('[data-del-onepager]').forEach(el=>{
+    el.onclick = (e) => { e.stopPropagation(); deleteOnePager(el.getAttribute('data-del-onepager')); };
+  });
+}
+
+// ---------- Regrouper les One-Pagers (semaine active) ----------
+let pdfLibLoadPromise = null;
+function loadPdfLib(){
+  if(!pdfLibLoadPromise){
+    pdfLibLoadPromise = import('https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.esm.min.js');
+  }
+  return pdfLibLoadPromise;
+}
+
+// The only step that genuinely cannot run in the browser: no reliable
+// client-side PPTX→PDF conversion library exists. Proxied through our own
+// serverless function (api/convert-pptx.js) so the CloudConvert API key
+// never reaches the client.
+async function convertPptxToPdfBytes(bytes, fileName){
+  const res = await fetch('/api/convert-pptx', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/octet-stream', 'X-File-Name': encodeURIComponent(fileName) },
+    body: bytes,
+  });
+  if(!res.ok){
+    const msg = await res.text().catch(()=>null);
+    throw new Error(msg || `Conversion échouée (HTTP ${res.status})`);
+  }
+  return new Uint8Array(await res.arrayBuffer());
+}
+
+function onePagerGroupFileName(week){
+  const label = (week && week.label || 'Semaine').replace(/[\\/:*?"<>|]/g,'').trim().replace(/\s+/g,'_');
+  return `Makor_One-Pagers_${label}.pdf`;
+}
+
+async function groupOnePagers(){
+  const week = state.weeks.find(w=>w.id===state.activeWeek);
+  const companies = sortCompaniesForDisplay(state.contentItems.filter(it=>it.name));
+  const withFile = companies.filter(it=>it.onePager);
+
+  if(withFile.length === 0){
+    showToast('Aucun One-Pager disponible pour cette semaine.');
+    return;
+  }
+
+  let merged, PDFDocument;
+  try{
+    ({ PDFDocument } = await loadPdfLib());
+    merged = await PDFDocument.create();
+  }catch(e){
+    console.error('pdf-lib load failed', e);
+    showToast('⚠️ Impossible de charger le module de fusion PDF — vérifie ta connexion');
+    return;
+  }
+
+  let included = 0;
+  const skipped = [];
+  for(let i=0;i<withFile.length;i++){
+    const it = withFile[i];
+    showToast(`Regroupement en cours... (${i+1}/${withFile.length}) — ${it.name}`);
+    try{
+      const bytes = await fetchOnePagerBytes(it.onePager);
+      if(!bytes) throw new Error('fichier introuvable');
+      const pdfBytes = it.onePager.format === 'pptx'
+        ? await convertPptxToPdfBytes(bytes, it.onePager.fileName)
+        : bytes;
+      const src = await PDFDocument.load(pdfBytes, { ignoreEncryption: true });
+      const pages = await merged.copyPages(src, src.getPageIndices());
+      pages.forEach(p => merged.addPage(p));
+      included++;
+    }catch(err){
+      console.error('One-Pager ignoré du regroupement:', it.name, err);
+      skipped.push(it.name);
+    }
+  }
+
+  if(included === 0){
+    showToast('⚠️ Aucun One-Pager n\'a pu être regroupé (lecture ou conversion en échec).');
+    return;
+  }
+
+  const finalBytes = await merged.save();
+  const blob = new Blob([finalBytes], { type:'application/pdf' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = onePagerGroupFileName(week);
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url), 10000);
+
+  const plural = included > 1 ? 's' : '';
+  const summary = `${included} One-Pager${plural} regroupé${plural} sur ${companies.length} entreprise${companies.length>1?'s':''}.`;
+  showToast(skipped.length ? `${summary} Ignorés : ${skipped.join(', ')}.` : summary);
 }
 
 function addContentItemInline(cat){

@@ -1,8 +1,10 @@
-# The old-site Vercel project (makor-morning-news) serves ONLY the self-contained
-# index.html — all CSS/JS is inline, the only external deps are CDNs (html2pdf,
-# twemoji, firebase). Everything else in this folder (the webapp/ refonte, docs,
-# graphify output, worktrees, scratch notes) must NOT be uploaded to it.
-# Deploying the webapp/ project is done from inside webapp/, so this file does
-# not affect it.
+# The old-site Vercel project (makor-morning-news) serves the self-contained
+# index.html plus one small serverless function (api/convert-pptx.js, added
+# for the One-Pager grouping feature — the only backend code this project
+# has). Everything else in this folder (the webapp/ refonte, docs, graphify
+# output, worktrees, scratch notes) must NOT be uploaded to it. Deploying the
+# webapp/ project is done from inside webapp/, so this file does not affect it.
 *
 !index.html
+!api
+!api/**
