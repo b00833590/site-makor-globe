@@ -286,6 +286,17 @@
   .color-popup .swatch:hover{transform:scale(1.15);}
   .color-popup .swatch.reset{display:flex;align-items:center;justify-content:center;font-size:11px;color:var(--muted);background:#fff;}
 
+  .flag-picker-trigger{cursor:pointer;border-radius:4px;padding:0 2px;}
+  .flag-picker-trigger:hover{background:rgba(0,0,0,.06);}
+  .flag-popup{position:fixed;background:#fff;border:1px solid var(--line);border-radius:10px;
+    box-shadow:0 8px 24px rgba(0,0,0,.2);z-index:300;width:220px;max-width:calc(100vw - 16px);
+    display:flex;flex-direction:column;overflow:hidden;}
+  .flag-popup-search{border:none;border-bottom:1px solid var(--line);padding:8px 10px;font-size:13px;outline:none;}
+  .flag-popup-list{max-height:260px;overflow-y:auto;}
+  .flag-popup-row{padding:6px 10px;font-size:13px;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .flag-popup-row:hover{background:var(--bg,#f2f4f8);}
+  .flag-popup-empty{padding:10px;font-size:12.5px;color:var(--muted);text-align:center;}
+
   /* Gold triangle bullet points (company analysis) */
   .company-bullets{margin-top:4px;}
   .bullet-row{display:flex;align-items:flex-start;gap:8px;padding:6px 0;border-bottom:1px dashed var(--line);}
@@ -301,6 +312,19 @@
   .onepager-actions button{background:transparent;border:none;color:var(--muted);font-size:11px;cursor:pointer;
     text-decoration:underline;padding:0;}
   .onepager-actions button:hover{color:var(--gold);}
+  .onepager-skip-list{max-height:260px;overflow-y:auto;margin-top:10px;display:flex;flex-direction:column;gap:8px;}
+  .onepager-skip-row{background:#fbeae8;border-radius:8px;padding:8px 10px;}
+  .onepager-skip-name{font-size:13px;font-weight:600;color:var(--red);}
+  .onepager-skip-reason{font-size:12px;color:#5a6072;margin-top:2px;}
+  .presentation-date-field{display:flex;align-items:center;gap:8px;margin:10px 0 4px;font-size:13px;color:var(--text);}
+  .presentation-date-field label,
+  .presentation-date-field .presentation-date-label{font-weight:600;}
+  .presentation-date-field .presentation-date-value{color:var(--text);}
+  .presentation-date-field input[type="date"]{border:1px solid var(--line);border-radius:6px;padding:4px 8px;font-size:13px;font-family:inherit;color:var(--text);background:#fff;}
+  .presentation-date-hint{font-size:11px;color:var(--muted);}
+  .onepager-status-bar{display:inline-flex;align-items:center;gap:10px;flex-wrap:wrap;}
+  .onepager-status-count{font-size:12px;color:var(--muted);}
+  .onepager-sent-note{font-size:11px;color:var(--muted);}
 
   /* Suivi des performances du portefeuille */
   .portfolio-section-title{font-family:Georgia,'Times New Roman',serif;font-size:24px;margin:36px 0 16px;}
@@ -454,6 +478,23 @@
   }
   .field textarea{resize:vertical;min-height:70px;}
   .form-actions{grid-column:1/-1;display:flex;gap:10px;justify-content:flex-end;}
+
+  body.public-mode .weeks-bar,
+  body.public-mode .tabs-bar,
+  body.public-mode .header-right{display:none;}
+  .public-onepagers-page{display:flex;justify-content:center;padding:40px 16px;}
+  .public-onepagers-card{
+    background:#fff;border:1px solid var(--line);border-radius:16px;padding:36px 32px;
+    max-width:480px;width:100%;text-align:center;box-shadow:0 10px 40px rgba(0,0,0,.06);
+  }
+  .public-onepagers-brand{font-size:11px;font-weight:700;letter-spacing:.06em;color:var(--muted);text-transform:uppercase;margin-bottom:10px;}
+  .public-onepagers-card h2{font-size:22px;color:var(--navy);margin-bottom:4px;}
+  .public-onepagers-sub{font-size:12px;font-weight:700;letter-spacing:.04em;color:var(--muted);text-transform:uppercase;margin:20px 0 10px;}
+  .public-onepagers-companies{list-style:none;padding:0;margin:0 0 24px;text-align:left;}
+  .public-onepagers-companies li{font-size:14px;color:var(--text);padding:7px 0;border-bottom:1px solid var(--line);}
+  .public-onepagers-companies li:last-child{border-bottom:none;}
+  .public-onepagers-companies-empty{color:var(--muted);font-size:13px;margin-bottom:24px;}
+  .public-onepagers-status{font-size:12px;color:var(--muted);margin-top:10px;}
 
   .modal-overlay{
     position:fixed;inset:0;background:rgba(15,23,48,.55);display:flex;align-items:center;justify-content:center;z-index:100;
@@ -1329,7 +1370,145 @@ function applyColor(dot, color){
   refreshData();
 }
 
+// ---------- Sélecteur de pays/drapeau (fiche entreprise) ----------
+// Flags are stored as the raw emoji character itself (it.flag, e.g. '🇩🇪')
+// — same format as before this picker existed, so every already-saved
+// company keeps displaying exactly what it had with zero migration needed.
+// Generated on the fly from a standard ISO 3166-1 alpha-2 code rather than
+// hand-typed/copy-pasted per country: each flag emoji is just two "regional
+// indicator" Unicode characters, one per letter of the code, so this is
+// both shorter to maintain and immune to the copy-paste mistakes a
+// hand-built 190-entry emoji list would risk.
+function flagEmojiFromCountryCode(code){
+  return String.fromCodePoint(...[...code.toUpperCase()].map(c => 127397 + c.charCodeAt(0)));
+}
+
+// Standard ISO 3166-1 list (all UN member/observer states, plus Taiwan/Hong
+// Kong/Macau — major financial centers with their own ISO codes) with
+// French names, matching the language already used for it.country
+// elsewhere in this file (see e.g. seed data: 'États-Unis', 'Taïwan',
+// 'Corée du Sud'). Deliberately NOT limited to countries already present in
+// existing company data — the spec explicitly asks for the full list.
+const COUNTRY_CODES_FR = [
+  ['AF','Afghanistan'],['ZA','Afrique du Sud'],['AL','Albanie'],['DZ','Algérie'],['DE','Allemagne'],
+  ['AD','Andorre'],['AO','Angola'],['AG','Antigua-et-Barbuda'],['SA','Arabie saoudite'],['AR','Argentine'],
+  ['AM','Arménie'],['AU','Australie'],['AT','Autriche'],['AZ','Azerbaïdjan'],['BS','Bahamas'],
+  ['BH','Bahreïn'],['BD','Bangladesh'],['BB','Barbade'],['BE','Belgique'],['BZ','Belize'],
+  ['BJ','Bénin'],['BT','Bhoutan'],['BY','Biélorussie'],['MM','Birmanie'],['BO','Bolivie'],
+  ['BA','Bosnie-Herzégovine'],['BW','Botswana'],['BR','Brésil'],['BN','Brunei'],['BG','Bulgarie'],
+  ['BF','Burkina Faso'],['BI','Burundi'],['KH','Cambodge'],['CM','Cameroun'],['CA','Canada'],
+  ['CV','Cap-Vert'],['CL','Chili'],['CN','Chine'],['CY','Chypre'],['CO','Colombie'],
+  ['KM','Comores'],['CG','Congo'],['CD','Congo (RDC)'],['KR','Corée du Sud'],['KP','Corée du Nord'],
+  ['CR','Costa Rica'],['CI',"Côte d'Ivoire"],['HR','Croatie'],['CU','Cuba'],['DK','Danemark'],
+  ['DJ','Djibouti'],['EG','Égypte'],['AE','Émirats arabes unis'],['EC','Équateur'],['ER','Érythrée'],
+  ['ES','Espagne'],['EE','Estonie'],['SZ','Eswatini'],['US','États-Unis'],['ET','Éthiopie'],
+  ['FJ','Fidji'],['FI','Finlande'],['FR','France'],['GA','Gabon'],['GM','Gambie'],
+  ['GE','Géorgie'],['GH','Ghana'],['GR','Grèce'],['GD','Grenade'],['GT','Guatemala'],
+  ['GN','Guinée'],['GQ','Guinée équatoriale'],['GW','Guinée-Bissau'],['GY','Guyana'],['HT','Haïti'],
+  ['HN','Honduras'],['HK','Hong Kong'],['HU','Hongrie'],['IN','Inde'],['ID','Indonésie'],
+  ['IQ','Irak'],['IR','Iran'],['IE','Irlande'],['IS','Islande'],['IL','Israël'],
+  ['IT','Italie'],['JM','Jamaïque'],['JP','Japon'],['JO','Jordanie'],['KZ','Kazakhstan'],
+  ['KE','Kenya'],['KG','Kirghizistan'],['KI','Kiribati'],['KW','Koweït'],['LA','Laos'],
+  ['LS','Lesotho'],['LV','Lettonie'],['LB','Liban'],['LR','Libéria'],['LY','Libye'],
+  ['LI','Liechtenstein'],['LT','Lituanie'],['LU','Luxembourg'],['MK','Macédoine du Nord'],['MO','Macao'],
+  ['MG','Madagascar'],['MY','Malaisie'],['MW','Malawi'],['MV','Maldives'],['ML','Mali'],
+  ['MT','Malte'],['MA','Maroc'],['MU','Maurice'],['MR','Mauritanie'],['MX','Mexique'],
+  ['FM','Micronésie'],['MD','Moldavie'],['MC','Monaco'],['MN','Mongolie'],['ME','Monténégro'],
+  ['MZ','Mozambique'],['NA','Namibie'],['NR','Nauru'],['NP','Népal'],['NI','Nicaragua'],
+  ['NE','Niger'],['NG','Nigéria'],['NO','Norvège'],['NZ','Nouvelle-Zélande'],['OM','Oman'],
+  ['UG','Ouganda'],['UZ','Ouzbékistan'],['PK','Pakistan'],['PW','Palaos'],['PA','Panama'],
+  ['PG','Papouasie-Nouvelle-Guinée'],['PY','Paraguay'],['NL','Pays-Bas'],['PE','Pérou'],['PH','Philippines'],
+  ['PL','Pologne'],['PT','Portugal'],['QA','Qatar'],['RO','Roumanie'],['GB','Royaume-Uni'],
+  ['RU','Russie'],['RW','Rwanda'],['KN','Saint-Christophe-et-Niévès'],['SM','Saint-Marin'],['VC','Saint-Vincent-et-les-Grenadines'],
+  ['LC','Sainte-Lucie'],['SB','Salomon'],['SV','Salvador'],['WS','Samoa'],['ST','Sao Tomé-et-Principe'],
+  ['SN','Sénégal'],['RS','Serbie'],['SC','Seychelles'],['SL','Sierra Leone'],['SG','Singapour'],
+  ['SK','Slovaquie'],['SI','Slovénie'],['SO','Somalie'],['SD','Soudan'],['SS','Soudan du Sud'],
+  ['LK','Sri Lanka'],['SE','Suède'],['CH','Suisse'],['SR','Suriname'],['SY','Syrie'],
+  ['TJ','Tadjikistan'],['TZ','Tanzanie'],['TD','Tchad'],['CZ','Tchéquie'],['TH','Thaïlande'],
+  ['TL','Timor oriental'],['TG','Togo'],['TO','Tonga'],['TT','Trinité-et-Tobago'],['TN','Tunisie'],
+  ['TM','Turkménistan'],['TR','Turquie'],['TV','Tuvalu'],['TW','Taïwan'],['UA','Ukraine'],
+  ['UY','Uruguay'],['VU','Vanuatu'],['VA','Vatican'],['VE','Venezuela'],['VN','Vietnam'],
+  ['YE','Yémen'],['ZM','Zambie'],['ZW','Zimbabwe'],
+];
+const COUNTRIES = COUNTRY_CODES_FR
+  .map(([code, name]) => ({ code, name, flag: flagEmojiFromCountryCode(code) }))
+  .sort((a,b) => a.name.localeCompare(b.name, 'fr'));
+
+function closeFlagPopup(){
+  const existing = document.getElementById('activeFlagPopup');
+  if(existing) existing.remove();
+}
+
+function flagPopupRowsHTML(query){
+  const norm = normalizeSearch(query);
+  const list = norm ? COUNTRIES.filter(c => normalizeSearch(c.name).includes(norm)) : COUNTRIES;
+  if(list.length === 0) return `<div class="flag-popup-empty">Aucun pays trouvé</div>`;
+  return list.map(c => `<div class="flag-popup-row" data-code="${c.code}" data-country="${escapeAttr(c.name)}">${c.flag} ${escapeHtml(c.name)}</div>`).join('');
+}
+
+function openFlagPopup(trigger){
+  closeFlagPopup();
+  closeColorPopup();
+  const companyKey = trigger.getAttribute('data-key');
+  const rect = trigger.getBoundingClientRect();
+  const pop = document.createElement('div');
+  pop.className = 'flag-popup';
+  pop.id = 'activeFlagPopup';
+  pop.innerHTML = `
+    <input type="text" class="flag-popup-search" placeholder="🔍 Rechercher un pays..." autocomplete="off" spellcheck="false">
+    <div class="flag-popup-list">${flagPopupRowsHTML('')}</div>`;
+  document.body.appendChild(pop);
+
+  // Clamp to the viewport on every side — a company card near the edge of
+  // the screen must not push the popup off-screen or cause horizontal
+  // page scroll. Flips above the trigger if there isn't room below.
+  const popRect = pop.getBoundingClientRect();
+  const left = Math.min(Math.max(8, rect.left), window.innerWidth - popRect.width - 8);
+  const fitsBelow = rect.bottom + popRect.height + 8 <= window.innerHeight;
+  const top = fitsBelow ? rect.bottom + 4 : Math.max(8, rect.top - popRect.height - 4);
+  pop.style.left = left + 'px';
+  pop.style.top = top + 'px';
+
+  const searchEl = pop.querySelector('.flag-popup-search');
+  const listEl = pop.querySelector('.flag-popup-list');
+  searchEl.addEventListener('click', (e) => e.stopPropagation());
+  searchEl.addEventListener('input', () => { listEl.innerHTML = flagPopupRowsHTML(searchEl.value); });
+  searchEl.addEventListener('keydown', (e) => {
+    if(e.key === 'Escape'){ closeFlagPopup(); return; }
+    if(e.key === 'Enter'){
+      e.preventDefault();
+      const first = listEl.querySelector('.flag-popup-row');
+      if(first) selectFlagForCompany(companyKey, first.getAttribute('data-code'), first.getAttribute('data-country'));
+    }
+  });
+  listEl.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const row = e.target.closest('.flag-popup-row');
+    if(!row) return;
+    selectFlagForCompany(companyKey, row.getAttribute('data-code'), row.getAttribute('data-country'));
+  });
+
+  searchEl.focus();
+}
+
+// Only ever sets it.flag — it.country is left untouched on purpose (the
+// spec keeps that field independently editable exactly as before; typing a
+// country name there still works, this picker is only a faster way to fill
+// the flag itself).
+function selectFlagForCompany(companyKey, code, countryName){
+  commitFieldEdit(companyKey, o => { o.flag = flagEmojiFromCountryCode(code); });
+  closeFlagPopup();
+  refreshData();
+}
+
 document.addEventListener('click', (e) => {
+  const flagTrigger = e.target.closest && e.target.closest('.flag-picker-trigger');
+  if(flagTrigger){
+    e.stopPropagation();
+    openFlagPopup(flagTrigger);
+    return;
+  }
+  if(!(e.target.closest && e.target.closest('#activeFlagPopup'))) closeFlagPopup();
   if(e.target.id === 'colorToolbarBtn'){
     e.stopPropagation();
     openFieldColorPopup();
@@ -2302,8 +2481,12 @@ function renderCompanies(){
     <div class="page-title"><h2>Entreprises à suivre</h2><span class="badge">${week ? week.label : ''}</span></div>
     <hr>`;
 
+  if(week) html += presentationDateFieldHTML(week);
+
+  const pptxCount = state.contentItems.filter(it=>it.name && it.onePagerFile).length;
+  const totalCompanyCount = state.contentItems.filter(it=>it.name).length;
   html += pageActionsHTML('Ajouter une entreprise', 'addCompanyBtn',
-    `<button class="btn btn-ghost btn-sm" id="groupOnePagersBtn">📎 Regrouper les One-Pagers</button>`);
+    onePagerActionsBarHTML(week, pptxCount, totalCompanyCount));
 
   const sortedItems = sortCompaniesForDisplay(state.contentItems);
 
@@ -2334,7 +2517,7 @@ function renderCompanies(){
             </div>
             <div class="company-sub">
               <span class="inline-edit" data-key="${it.key}" data-field="yahooSymbol" ${ce()} title="Symbole Yahoo Finance (ex. 3363.TWO) — alimente la courbe 📈">${escapeHtml(it.yahooSymbol||'')}</span>
-              <span class="inline-edit" data-key="${it.key}" data-field="flag" ${ce()}>${it.flag||''}</span>
+              <span class="${state.isEditing?'flag-picker-trigger':''}" data-field="flag" data-key="${it.key}" title="${state.isEditing?'Choisir un pays':''}">${it.flag||(state.isEditing?'🏳️':'')}</span>
               <span class="inline-edit" data-key="${it.key}" data-field="country" ${ce()}>${escapeHtml(it.country||'')}</span>
             </div>
           </div>
@@ -2355,7 +2538,7 @@ function renderCompanies(){
               <div class="bullet-text inline-edit" data-key="${it.key}" data-field="bullet" data-bullet-index="${i}" data-colorable="1" data-colorable-field="bullet-${i}" ${ce()} ${colorStyleAttr(it,'bullet-'+i)}>${escapeHtml(b)}</div>
               ${state.isEditing?`<span class="del-btn" data-del-bullet="${it.key}|${i}">✕</span>`:''}
             </div>`).join('')}
-          ${(state.isEditing || it.onePager)?`<div class="bullet-add">${state.isEditing?`<button class="btn btn-ghost btn-sm" data-add-bullet="${it.key}">+ Point clé</button>`:''}${onePagerControlHTML(it)}</div>`:''}
+          ${(state.isEditing || it.onePagerFile)?`<div class="bullet-add">${state.isEditing?`<button class="btn btn-ghost btn-sm" data-add-bullet="${it.key}">+ Point clé</button>`:''}${onePagerControlHTML(it)}</div>`:''}
         </div>
       </div>`;
     });
@@ -2403,6 +2586,11 @@ function renderCompanies(){
   wireOnePagerControls(c);
   const groupBtn = document.getElementById('groupOnePagersBtn');
   if(groupBtn) groupBtn.onclick = groupOnePagers;
+  const downloadBundleBtn = document.getElementById('downloadOnePagerBundleBtn');
+  if(downloadBundleBtn) downloadBundleBtn.onclick = downloadOnePagerBundle;
+  const sendBtn = document.getElementById('sendOnePagersEmailBtn');
+  if(sendBtn) sendBtn.onclick = sendOnePagersEmail;
+  wirePresentationDateField(c);
   renderCompareBar();
   wirePortfolioSection(c);
 }
@@ -3175,19 +3363,95 @@ async function handlePresentationFilesSelected(e){
 // Reuses the exact same chunked-base64-in-Firestore mechanism as Présentations
 // above (mkg:pdfchunk:<id>:<n> docs in the mkg_pdfchunks collection) — already
 // proven, already excluded from the bulk load, already covered by
-// firestore.rules — instead of inventing a new storage path. Metadata lives
-// on the company object itself (it.onePager), written through
-// commitFieldEdit so it gets the same anti-rollback Firestore transaction as
-// every other company field (bullets, name, etc.).
+// firestore.rules — instead of inventing a new storage path.
+//
+// PPTX only, one file per company: it.onePagerFile = {id, fileName,
+// mimeType, size, chunkCount, uploadedAt}. This went through two earlier
+// shapes in the same day — a single it.onePager (PDF or PPTX, converted to
+// PDF at merge time via CloudConvert), then it.onePagerFiles = {pdf, pptx}
+// (two independent slots, two separate merged outputs) — before settling
+// here: PDF support is dropped entirely, so there is only ever one file to
+// track per company again. See migrateOnePagerToPptxOnly() below for how
+// data from either earlier shape lands here without being lost. Metadata is
+// written through commitFieldEdit so it gets the same anti-rollback
+// Firestore transaction as every other company field (bullets, name, etc.).
 const ONEPAGER_MAX_FILE_SIZE = 15 * 1024 * 1024; // 15 Mo, matches Présentations
 const ONEPAGER_MIME_BY_FORMAT = {
   pdf: 'application/pdf',
   pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
 };
+// 'pdf' is still detected (not merged into the null/"unrecognized" case) so
+// uploadOnePagerFile() below can tell a stagiaire specifically "PDF is no
+// longer accepted" instead of the generic "wrong format" message.
 function onePagerFormatFromFile(file){
   if(file.type === ONEPAGER_MIME_BY_FORMAT.pdf || /\.pdf$/i.test(file.name)) return 'pdf';
   if(file.type === ONEPAGER_MIME_BY_FORMAT.pptx || /\.pptx$/i.test(file.name)) return 'pptx';
   return null;
+}
+
+// One-time migration from the old single it.onePager field to the interim
+// it.onePagerFiles = {pdf, pptx} shape — run once at startup (see init()),
+// guarded the same way as every other migration in this file. Kept even
+// though PDF support has since been dropped: it's what makes the NEXT
+// migration below (migrateOnePagerToPptxOnly) able to assume onePagerFiles
+// is the only legacy shape it has to deal with, instead of reimplementing
+// this same old-onePager unpacking twice.
+function migrateOnePagerToTwoSlots(){
+  if(DB['mkg:migrated:onepager-two-slots']) return;
+  Object.keys(DB)
+    .filter(k => k.indexOf('mkg:content:entreprises:') === 0)
+    .forEach(k => {
+      const item = DB[k];
+      if(!item || !item.onePager || item.onePagerFiles) return;
+      const old = item.onePager;
+      const slot = old.format === 'pptx' ? 'pptx' : 'pdf';
+      const next = { ...item, onePagerFiles: { [slot]: {
+        id: old.id, fileName: old.fileName, mimeType: old.mimeType, size: old.size, chunkCount: old.chunkCount, uploadedAt: old.uploadedAt,
+      } } };
+      delete next.onePager;
+      setItemLocal(k, next);
+    });
+  setItemLocal('mkg:migrated:onepager-two-slots', { done:true, at:Date.now() });
+}
+
+// Second migration step: collapses the interim two-slot shape down to PPTX
+// only, now that PDF support is dropped. Nothing is ever deleted: a
+// company's old PDF (if any) moves to it.legacyOnePagerPdf and a week's old
+// PDF bundle (if any) moves to week.legacyOnePagerBundlePdf — both keep
+// their Firestore chunks and stay fully reconstructible, they're just no
+// longer read by any part of the PPTX-only workflow (no UI renders them).
+// See PHASE 13 in the project notes / final report for why: deleting
+// already-uploaded files outright, with no way to know whether anyone still
+// needed them, was exactly the kind of silent data loss this project has
+// been burned by before.
+function migrateOnePagerToPptxOnly(){
+  if(DB['mkg:migrated:onepager-pptx-only']) return;
+
+  Object.keys(DB)
+    .filter(k => k.indexOf('mkg:content:entreprises:') === 0)
+    .forEach(k => {
+      const item = DB[k];
+      if(!item || !item.onePagerFiles) return;
+      const next = { ...item };
+      if(item.onePagerFiles.pptx) next.onePagerFile = item.onePagerFiles.pptx;
+      if(item.onePagerFiles.pdf) next.legacyOnePagerPdf = item.onePagerFiles.pdf;
+      delete next.onePagerFiles;
+      setItemLocal(k, next);
+    });
+
+  Object.keys(DB)
+    .filter(k => k.indexOf('mkg:week:') === 0)
+    .forEach(k => {
+      const item = DB[k];
+      if(!item || !item.onePagerBundles) return;
+      const next = { ...item };
+      if(item.onePagerBundles.pptx) next.onePagerBundle = item.onePagerBundles.pptx;
+      if(item.onePagerBundles.pdf) next.legacyOnePagerBundlePdf = item.onePagerBundles.pdf;
+      delete next.onePagerBundles;
+      setItemLocal(k, next);
+    });
+
+  setItemLocal('mkg:migrated:onepager-pptx-only', { done:true, at:Date.now() });
 }
 
 // Reconstructed One-Pager bytes never change for a given (id, uploadedAt)
@@ -3229,20 +3493,22 @@ function setCachedOnePagerBytes(cacheKey, bytes){
   }).catch(()=>{});
 }
 
-// Uploads (or replaces) a company's One-Pager. New chunks are written FIRST,
-// metadata updated only once every chunk is confirmed, and any PREVIOUS
-// file's chunks are deleted LAST — so the metadata never points at a
-// half-written upload, and there is never a moment where two versions could
-// both be picked up by the weekly merge (see spec: never two versions of the
-// same One-Pager in the final PDF).
+// Uploads (or replaces) a company's One-Pager — PPTX only. New chunks are
+// written FIRST, metadata updated only once every chunk is confirmed, and
+// any PREVIOUS file's chunks are deleted LAST — so the metadata never
+// points at a half-written upload, and there is never a moment where two
+// versions could both be picked up by the weekly merge.
 async function uploadOnePagerFile(companyKey, file){
   const format = onePagerFormatFromFile(file);
-  if(!format) return { ok:false, error:'Format non accepté — seuls PDF et PPTX sont acceptés.' };
+  if(format === 'pdf'){
+    return { ok:false, error:'Les fichiers PDF ne sont plus acceptés — seul le PPTX (.pptx) est accepté pour les One-Pagers.' };
+  }
+  if(format !== 'pptx') return { ok:false, error:'Format non accepté — seul le PPTX (.pptx) est accepté.' };
   if(file.size > ONEPAGER_MAX_FILE_SIZE) return { ok:false, error:'Fichier trop volumineux (max 15 Mo).' };
 
   const company = DB[companyKey];
   if(!company) return { ok:false, error:"Cette entreprise n'existe plus." };
-  const previousOnePager = company.onePager;
+  const previousFile = company.onePagerFile;
 
   let arrayBuffer, base64;
   try{
@@ -3266,15 +3532,15 @@ async function uploadOnePagerFile(companyKey, file){
     writtenChunkKeys.push(key);
   }
 
-  const onePager = {
-    id, fileName: file.name, mimeType: ONEPAGER_MIME_BY_FORMAT[format], format,
+  const onePagerFile = {
+    id, fileName: file.name, mimeType: ONEPAGER_MIME_BY_FORMAT.pptx,
     size: file.size, chunkCount: chunks.length, uploadedAt: Date.now(),
   };
-  await commitFieldEdit(companyKey, o => { o.onePager = onePager; });
-  setCachedOnePagerBytes(id + '@' + onePager.uploadedAt, new Uint8Array(arrayBuffer));
+  await commitFieldEdit(companyKey, o => { o.onePagerFile = onePagerFile; });
+  setCachedOnePagerBytes(id + '@' + onePagerFile.uploadedAt, new Uint8Array(arrayBuffer));
 
-  if(previousOnePager && previousOnePager.id){
-    const oldChunkKeys = await fetchRemoteKeys(`${PDF_PREFIX_CLIENT}${previousOnePager.id}:`);
+  if(previousFile && previousFile.id){
+    const oldChunkKeys = await fetchRemoteKeys(`${PDF_PREFIX_CLIENT}${previousFile.id}:`);
     oldChunkKeys.forEach(k => deleteItemLocal(k));
   }
   return { ok:true };
@@ -3284,11 +3550,15 @@ async function uploadOnePagerFile(companyKey, file){
 // available, else by re-fetching and reassembling every chunk from
 // Firestore, mirroring openPresentation()'s own reconstruction logic but
 // returning raw bytes instead of opening a tab (used by both "open this
-// file" and the weekly merge).
-async function fetchOnePagerBytes(onePager, onProgress){
+// file" and the weekly merge). `forceRefresh` skips the cache read (used by
+// groupOnePagers' retry pass, in case a stale/corrupted cache entry is why
+// the first attempt failed) — the freshly-fetched bytes still get cached.
+async function fetchOnePagerBytes(onePager, onProgress, forceRefresh){
   const cacheKey = onePager.id + '@' + onePager.uploadedAt;
-  const cached = await getCachedOnePagerBytes(cacheKey);
-  if(cached) return cached;
+  if(!forceRefresh){
+    const cached = await getCachedOnePagerBytes(cacheKey);
+    if(cached) return cached;
+  }
 
   const chunkKeys = await fetchRemoteKeys(`${PDF_PREFIX_CLIENT}${onePager.id}:`);
   if(!chunkKeys || chunkKeys.length === 0) return null;
@@ -3316,39 +3586,39 @@ async function fetchOnePagerBytes(onePager, onProgress){
 
 async function openOnePager(companyKey){
   const company = DB[companyKey];
-  const onePager = company && company.onePager;
-  if(!onePager) return;
-  showToast(`Ouverture de "${onePager.fileName}"...`);
-  const bytes = await fetchOnePagerBytes(onePager);
-  if(!bytes){ showToast('⚠️ Impossible de récupérer ce One-Pager — réessaie'); return; }
-  const blob = new Blob([bytes], { type: onePager.mimeType });
+  const file = company && company.onePagerFile;
+  if(!file) return;
+  showToast(`Ouverture de "${file.fileName}"...`);
+  const bytes = await fetchOnePagerBytes(file);
+  if(!bytes){ showToast('⚠️ Impossible de récupérer ce fichier — réessaie'); return; }
+  const blob = new Blob([bytes], { type: file.mimeType });
   const url = URL.createObjectURL(blob);
   window.open(url, '_blank', 'noopener');
 }
 
 async function deleteOnePager(companyKey){
   const company = DB[companyKey];
-  const onePager = company && company.onePager;
-  if(!onePager) return;
+  const file = company && company.onePagerFile;
+  if(!file) return;
   if(!confirm('Supprimer ce One-Pager ?')) return;
   showToast('Suppression en cours...');
-  const chunkKeys = await fetchRemoteKeys(`${PDF_PREFIX_CLIENT}${onePager.id}:`);
+  const chunkKeys = await fetchRemoteKeys(`${PDF_PREFIX_CLIENT}${file.id}:`);
   chunkKeys.forEach(k => deleteItemLocal(k));
-  await commitFieldEdit(companyKey, o => { delete o.onePager; });
+  await commitFieldEdit(companyKey, o => { delete o.onePagerFile; });
   showToast('One-Pager supprimé');
   refreshData();
 }
 
 function onePagerControlHTML(it){
-  const op = it.onePager;
-  if(!op){
-    return state.isEditing ? `<button class="btn btn-ghost btn-sm" data-add-onepager="${it.key}">📎 Ajouter le One-Pager</button>` : '';
+  const file = it.onePagerFile;
+  if(!file){
+    return state.isEditing ? `<button class="btn btn-ghost btn-sm" data-add-onepager="${it.key}">📎 Ajouter le One-Pager (.pptx)</button>` : '';
   }
   const actions = state.isEditing ? `<span class="onepager-actions">
       <button data-replace-onepager="${it.key}">Remplacer</button>
       <button data-del-onepager="${it.key}">Supprimer</button>
     </span>` : '';
-  return `<span class="onepager-chip" data-open-onepager="${it.key}" title="Ouvrir ${escapeAttr(op.fileName)}">📎 ${escapeHtml(op.fileName)}</span>${actions}`;
+  return `<span class="onepager-chip" data-open-onepager="${it.key}" title="Ouvrir ${escapeAttr(file.fileName)}">📎 ${escapeHtml(file.fileName)}</span>${actions}`;
 }
 
 let onePagerFileInputEl = null;
@@ -3357,7 +3627,7 @@ function getOnePagerFileInput(){
   if(!onePagerFileInputEl){
     onePagerFileInputEl = document.createElement('input');
     onePagerFileInputEl.type = 'file';
-    onePagerFileInputEl.accept = '.pdf,.pptx,application/pdf,application/vnd.openxmlformats-officedocument.presentationml.presentation';
+    onePagerFileInputEl.accept = '.pptx,application/vnd.openxmlformats-officedocument.presentationml.presentation';
     onePagerFileInputEl.style.display = 'none';
     onePagerFileInputEl.addEventListener('change', handleOnePagerFileSelected);
     document.body.appendChild(onePagerFileInputEl);
@@ -3390,97 +3660,564 @@ function wireOnePagerControls(container){
   });
 }
 
-// ---------- Regrouper les One-Pagers (semaine active) ----------
-let pdfLibLoadPromise = null;
-function loadPdfLib(){
-  if(!pdfLibLoadPromise){
-    pdfLibLoadPromise = import('https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.esm.min.js');
+// ---------- Date de présentation (distincte du libellé de la semaine) ----------
+// Stored as week.presentationDate, a plain 'YYYY-MM-DD' string — a real
+// <input type="date"> rather than a free-text field, so it can never end up
+// in an unparseable format later (see groupOnePagers'/sendOnePagersEmail's
+// use of it). Every week is expected to always have a real saved value now
+// (auto-filled with that week's Friday — see computeDefaultPresentationDateISO
+// below — the moment its label becomes a real date range, and backfilled for
+// every pre-existing week at startup by backfillWeekPresentationDates()).
+// Once a real value is saved — whether auto-filled or typed manually — it is
+// never recalculated or overwritten by the automatic logic again; only an
+// explicit edit in presentationDateInput changes it after that point.
+const FR_MONTHS_UNACCENTED = {
+  JANVIER:0, FEVRIER:1, MARS:2, AVRIL:3, MAI:4, JUIN:5,
+  JUILLET:6, AOUT:7, SEPTEMBRE:8, OCTOBRE:9, NOVEMBRE:10, DECEMBRE:11,
+};
+// Parses the real "day range" out of a week label like "07 - 11 SEPTEMBRE" or
+// the cross-month "31 AOUT - 04 SEPTEMBRE" / cross-year "28 DECEMBRE - 01
+// JANVIER" forms, and returns the END of that range — which by this app's own
+// week-naming convention (always a Monday-to-Friday range) IS the Friday of
+// that week. Not a simple label substring copy: the two-month form parses a
+// month name for EACH side independently, and if the end month sorts earlier
+// in the calendar than the start month, the end date is rolled into next year
+// (Dec → Jan). No stored start/end date fields exist on the week object
+// itself (weeks only have a free-text label) — this label parse IS the
+// source of the actual dates, same limitation the old placeholder-only guess
+// already had, just now handling both date formats and the year rollover.
+function computeDefaultPresentationDateISO(label){
+  const plain = (label||'').normalize('NFD').replace(/[̀-ͯ]/g,'').toUpperCase();
+  let startMonth, endDay, endMonth;
+  let m = /(\d{1,2})\s+([A-Z]+)\s*[-–]\s*(\d{1,2})\s+([A-Z]+)/.exec(plain); // "31 AOUT - 04 SEPTEMBRE"
+  if(m){
+    startMonth = FR_MONTHS_UNACCENTED[m[2]];
+    endDay = parseInt(m[3], 10);
+    endMonth = FR_MONTHS_UNACCENTED[m[4]];
+  } else {
+    m = /(\d{1,2})\s*[-–]\s*(\d{1,2})\s+([A-Z]+)/.exec(plain); // "07 - 11 SEPTEMBRE"
+    if(!m) return '';
+    startMonth = endMonth = FR_MONTHS_UNACCENTED[m[3]];
+    endDay = parseInt(m[2], 10);
   }
-  return pdfLibLoadPromise;
+  if(startMonth === undefined || endMonth === undefined || !endDay || endDay < 1 || endDay > 31) return '';
+  const startYear = new Date().getFullYear(); // best-effort: weeks store no real year, so "now" is the only signal available
+  const endYear = endMonth < startMonth ? startYear + 1 : startYear;
+  return `${endYear}-${String(endMonth+1).padStart(2,'0')}-${String(endDay).padStart(2,'0')}`;
 }
 
-// The only step that genuinely cannot run in the browser: no reliable
-// client-side PPTX→PDF conversion library exists. Proxied through our own
-// serverless function (api/convert-pptx.js) so the CloudConvert API key
-// never reaches the client.
-async function convertPptxToPdfBytes(bytes, fileName){
-  const res = await fetch('/api/convert-pptx', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/octet-stream', 'X-File-Name': encodeURIComponent(fileName) },
-    body: bytes,
+// Fills in week.presentationDate for every already-existing week that
+// doesn't have one yet, using that week's own label — run once at startup so
+// old weeks created before this auto-fill logic existed end up with a real
+// saved Friday instead of staying permanently blank. Never touches a week
+// that already has a presentationDate, custom or auto-filled alike.
+function backfillWeekPresentationDates(){
+  keysWithPrefix('mkg:week:').forEach(k=>{
+    const week = DB[k];
+    if(!week || week.presentationDate) return;
+    const computed = computeDefaultPresentationDateISO(week.label);
+    if(computed){ week.presentationDate = computed; setItemLocal(k, week); }
   });
+}
+
+// Admin-facing display format (French) — distinct from
+// formatPresentationDateEnglish(), which is what mentors see in the email
+// and on the public page.
+function formatPresentationDateFR(iso){
+  if(!iso) return '';
+  const d = new Date(iso + 'T00:00:00Z');
+  if(isNaN(d.getTime())) return '';
+  return new Intl.DateTimeFormat('fr-FR', { day:'2-digit', month:'long', year:'numeric', timeZone:'UTC' }).format(d);
+}
+
+function presentationDateFieldHTML(week){
+  const value = week.presentationDate || '';
+  if(!state.isEditing){
+    // Read-only outside edit mode, same convention as every other field on
+    // this page (contenteditable is only enabled via ce() when isEditing) —
+    // a native <input type="date"> has no equivalent of "not contenteditable
+    // but still shown", so view mode renders plain text instead of the
+    // input entirely.
+    if(!value) return '';
+    return `<div class="presentation-date-field">
+      <span class="presentation-date-label">Date de présentation :</span>
+      <span class="presentation-date-value">${escapeHtml(formatPresentationDateFR(value))}</span>
+    </div>`;
+  }
+  const placeholder = value ? '' : computeDefaultPresentationDateISO(week.label);
+  return `<div class="presentation-date-field">
+    <label for="presentationDateInput">Date de présentation :</label>
+    <input type="date" id="presentationDateInput" data-week-key="mkg:week:${week.id}" value="${escapeAttr(value || placeholder)}">
+    ${!value && placeholder ? '<span class="presentation-date-hint">Suggestion à partir du nom de la semaine — vérifie et modifie si besoin.</span>' : ''}
+  </div>`;
+}
+
+function wirePresentationDateField(container){
+  const input = container.querySelector('#presentationDateInput');
+  if(!input) return;
+  input.onchange = () => {
+    const weekKey = input.dataset.weekKey;
+    const value = input.value; // '' or 'YYYY-MM-DD', native to <input type="date">
+    commitFieldEdit(weekKey, o => { o.presentationDate = value; });
+    // commitFieldEdit only replaces DB[weekKey] with a new object — state.weeks
+    // was built once in init() and still holds the OLD week object reference,
+    // so leaving edit mode right after saving would re-render from that stale
+    // object and show no date until the next full page load. Same fix already
+    // applied to the week label field just above (see field === 'label').
+    const week = state.weeks.find(w => w.id === weekKey.replace('mkg:week:',''));
+    if(week) week.presentationDate = value;
+    showToast('Date de présentation enregistrée');
+  };
+}
+
+// ---------- Regrouper les One-Pagers (semaine active) ----------
+// PPTX only: one merge, via api/merge-pptx.py (python-pptx) — see that
+// file's own comments for why this can't run client-side (no viable
+// browser-side OOXML slide library) and why it isn't routed through
+// CloudConvert (a metered format-CONVERSION service; a merge doesn't
+// convert anything, it only copies slides, which python-pptx does for free
+// with no quota — CloudConvert and pdf-lib are both gone from this feature
+// entirely, see PHASE 13 in the final report for what happened to the old
+// PDF path's data).
+
+// Uses the presentation date when one has been set (matches what mentors
+// actually see in the email/public page), falling back to the week label
+// otherwise — never the reverse, so the file a stagiaire downloads always
+// names the real date once it's known.
+function onePagerGroupFileName(week){
+  if(week && week.presentationDate){
+    const d = new Date(week.presentationDate + 'T00:00:00Z');
+    if(!isNaN(d.getTime())){
+      const day = String(d.getUTCDate()).padStart(2,'0');
+      const month = new Intl.DateTimeFormat('fr-FR', { month:'long', timeZone:'UTC' }).format(d).normalize('NFD').replace(/[̀-ͯ]/g,'').toUpperCase();
+      return `Makor_One-Pagers_${day}_${month}_${d.getUTCFullYear()}.pptx`;
+    }
+  }
+  const label = (week && week.label || 'Semaine').replace(/[\\/:*?"<>|]/g,'').trim().replace(/\s+/g,'_');
+  return `Makor_One-Pagers_${label}.pptx`;
+}
+
+function triggerBrowserDownload(bytes, mimeType, filename){
+  const blob = new Blob([bytes], { type: mimeType });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url), 10000);
+}
+
+// Merges every company's PPTX into one deck via api/merge-pptx.py. Bytes
+// are fetched client-side first — each with up to 2 attempts (a fast
+// IndexedDB-cache read, then, only on failure, a forced-fresh refetch that
+// bypasses a possibly-stale/corrupted cache entry) — then sent to the
+// server in one batch, in `items`' order (already the display order of the
+// Entreprises tab, per sortCompaniesForDisplay in groupOnePagers below), so
+// the merged deck's slide order matches what's shown on screen. The server
+// does its own per-file isolation on top (see its X-Skipped-Files response
+// header) so a single corrupt PPTX among several still doesn't block the
+// rest — this, plus the count check in groupOnePagers, is what guarantees
+// "N available -> N in the final file": nothing here silently drops a file
+// without it ending up counted in `skipped`.
+async function mergePptxBundle(items){
+  const includedItems = [];
+  const skipped = [];
+  if(items.length === 0) return { bytes:null, includedItems, skipped };
+
+  const filesForServer = [];
+  const itemByFileName = new Map();
+  for(let i=0;i<items.length;i++){
+    const it = items[i];
+    showToast(`Préparation des One-Pagers... (${i+1}/${items.length}) — ${it.name}`);
+    let lastErr = null, bytes = null;
+    for(let attempt=0; attempt<2 && !bytes; attempt++){
+      try{
+        bytes = await fetchOnePagerBytes(it.onePagerFile, null, attempt > 0);
+        if(!bytes) throw new Error('Fichier introuvable sur le serveur (chunks manquants ou non accessibles).');
+      }catch(err){ lastErr = err; bytes = null; }
+    }
+    if(bytes){
+      const fileName = it.onePagerFile.fileName || (it.name + '.pptx');
+      filesForServer.push({ name: fileName, base64: arrayBufferToBase64(bytes) });
+      itemByFileName.set(fileName, it);
+    } else {
+      console.error('One-Pager ignoré (lecture):', it.name, lastErr);
+      skipped.push({ name: it.name, reason: (lastErr && lastErr.message) || String(lastErr) });
+    }
+  }
+
+  if(filesForServer.length === 0) return { bytes:null, includedItems, skipped };
+
+  showToast('Fusion des One-Pagers en cours...');
+  let res;
+  try{
+    res = await fetch('/api/merge-pptx', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ files: filesForServer }),
+    });
+  }catch(e){
+    filesForServer.forEach(f => skipped.push({ name: itemByFileName.get(f.name).name, reason: 'Connexion au service de fusion impossible.' }));
+    return { bytes:null, includedItems, skipped };
+  }
+
   if(!res.ok){
     const msg = await res.text().catch(()=>null);
-    throw new Error(msg || `Conversion échouée (HTTP ${res.status})`);
+    filesForServer.forEach(f => skipped.push({ name: itemByFileName.get(f.name).name, reason: msg || `Fusion échouée (HTTP ${res.status})` }));
+    return { bytes:null, includedItems, skipped };
   }
-  return new Uint8Array(await res.arrayBuffer());
-}
 
-function onePagerGroupFileName(week){
-  const label = (week && week.label || 'Semaine').replace(/[\\/:*?"<>|]/g,'').trim().replace(/\s+/g,'_');
-  return `Makor_One-Pagers_${label}.pdf`;
+  const skippedByServer = new Set();
+  const skippedHeader = res.headers.get('X-Skipped-Files');
+  if(skippedHeader){
+    try{
+      JSON.parse(skippedHeader).forEach(s => {
+        skippedByServer.add(s.name);
+        const it = itemByFileName.get(s.name);
+        skipped.push({ name: it ? it.name : s.name, reason: s.reason || 'fichier illisible' });
+      });
+    }catch(e){ /* header malformed — falls through, those files just won't be named individually */ }
+  }
+  filesForServer.forEach(f => { if(!skippedByServer.has(f.name)) includedItems.push(itemByFileName.get(f.name)); });
+
+  const bytes = new Uint8Array(await res.arrayBuffer());
+
+  // Independent cross-check, not just trusting our own bookkeeping above:
+  // the server counts what it ACTUALLY wrote into the merged file
+  // (X-Included-Count) separately from what the client thinks it sent. If
+  // the two ever disagree, that's a real correctness bug worth surfacing
+  // loudly rather than silently downloading a file that doesn't match what
+  // the UI is about to report — exactly the kind of gap that let "4
+  // deposited -> 2 in the final file" go unnoticed before.
+  const serverIncludedCount = parseInt(res.headers.get('X-Included-Count'), 10);
+  if(!isNaN(serverIncludedCount) && serverIncludedCount !== includedItems.length){
+    console.error('One-Pager count mismatch between client and server', { clientCount: includedItems.length, serverCount: serverIncludedCount });
+    return { bytes: null, includedItems: [], skipped: items.map(it => ({ name: it.name, reason: 'Incohérence de comptage détectée entre le navigateur et le serveur — fusion annulée par sécurité, réessaie.' })) };
+  }
+
+  return { bytes, includedItems, skipped };
 }
 
 async function groupOnePagers(){
   const week = state.weeks.find(w=>w.id===state.activeWeek);
   const companies = sortCompaniesForDisplay(state.contentItems.filter(it=>it.name));
-  const withFile = companies.filter(it=>it.onePager);
+  const withPptx = companies.filter(it => it.onePagerFile);
 
-  if(withFile.length === 0){
-    showToast('Aucun One-Pager disponible pour cette semaine.');
+  if(withPptx.length === 0){
+    showToast('Aucun One-Pager (.pptx) disponible pour cette semaine.');
     return;
   }
 
-  let merged, PDFDocument;
-  try{
-    ({ PDFDocument } = await loadPdfLib());
-    merged = await PDFDocument.create();
-  }catch(e){
-    console.error('pdf-lib load failed', e);
-    showToast('⚠️ Impossible de charger le module de fusion PDF — vérifie ta connexion');
-    return;
-  }
+  const result = await mergePptxBundle(withPptx);
+  const included = result.includedItems.length;
 
-  let included = 0;
-  const skipped = [];
-  for(let i=0;i<withFile.length;i++){
-    const it = withFile[i];
-    showToast(`Regroupement en cours... (${i+1}/${withFile.length}) — ${it.name}`);
-    try{
-      const bytes = await fetchOnePagerBytes(it.onePager);
-      if(!bytes) throw new Error('fichier introuvable');
-      const pdfBytes = it.onePager.format === 'pptx'
-        ? await convertPptxToPdfBytes(bytes, it.onePager.fileName)
-        : bytes;
-      const src = await PDFDocument.load(pdfBytes, { ignoreEncryption: true });
-      const pages = await merged.copyPages(src, src.getPageIndices());
-      pages.forEach(p => merged.addPage(p));
-      included++;
-    }catch(err){
-      console.error('One-Pager ignoré du regroupement:', it.name, err);
-      skipped.push(it.name);
-    }
+  // The explicit guarantee PHASE 7 asks for: what was available must equal
+  // what made it into the final file, or the gap is named, not silently
+  // swallowed — this assertion can only ever fire if mergePptxBundle has a
+  // bookkeeping bug (every included/skipped file is accounted for above),
+  // so it's a last-resort safety net, not the primary correctness mechanism.
+  if(included + result.skipped.length !== withPptx.length){
+    console.error('One-Pager count mismatch', { available: withPptx.length, included, skipped: result.skipped.length });
   }
 
   if(included === 0){
-    showToast('⚠️ Aucun One-Pager n\'a pu être regroupé (lecture ou conversion en échec).');
+    showOnePagerMergeResultModal({ included: 0, total: withPptx.length, skipped: result.skipped });
     return;
   }
 
-  const finalBytes = await merged.save();
-  const blob = new Blob([finalBytes], { type:'application/pdf' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = onePagerGroupFileName(week);
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  setTimeout(()=>URL.revokeObjectURL(url), 10000);
+  triggerBrowserDownload(result.bytes, ONEPAGER_MIME_BY_FORMAT.pptx, onePagerGroupFileName(week));
+  const bundleSaved = await saveOnePagerBundle(week, result.bytes, result.includedItems);
 
-  const plural = included > 1 ? 's' : '';
-  const summary = `${included} One-Pager${plural} regroupé${plural} sur ${companies.length} entreprise${companies.length>1?'s':''}.`;
-  showToast(skipped.length ? `${summary} Ignorés : ${skipped.join(', ')}.` : summary);
+  const summary = `${included} One-Pager${included>1?'s':''} regroupé${included>1?'s':''} sur ${withPptx.length} disponible${withPptx.length>1?'s':''}.`;
+  if(result.skipped.length){
+    // A vanishing toast is exactly how a partial file slips by unnoticed —
+    // needs a report the person has to actively dismiss, naming which
+    // company and why, not a 2-second notification.
+    showOnePagerMergeResultModal({ included, total: withPptx.length, skipped: result.skipped });
+  } else if(!bundleSaved){
+    showToast(`${summary} ⚠️ Téléchargé, mais la sauvegarde en ligne (pour le lien à envoyer) a échoué — réessaie.`);
+  } else {
+    showToast(summary);
+  }
+}
+
+// Persists the just-merged PPTX server-side (same chunked-base64 mechanism
+// as a single One-Pager upload) so it can be reached later from the public
+// consultation page / the emailed link — the browser download in
+// groupOnePagers() is a convenience for the admin, not what mentors get.
+// The public token, created once and reused forever after (see PHASE 14 in
+// the final report): the emailed link always resolves to whatever the most
+// recently generated bundle is, so fixing/replacing a One-Pager after
+// sending is reflected automatically, without needing a new email. Returns
+// true/false so the caller can warn the admin if the local download
+// succeeded but this server save didn't.
+async function saveOnePagerBundle(week, bytes, includedItems){
+  try{
+    const base64 = arrayBufferToBase64(bytes);
+    const chunks = splitIntoChunks(base64, PRESENTATION_CHUNK_SIZE);
+    const bundleId = 'bundle-' + uid();
+    const writtenChunkKeys = [];
+    for(let i=0;i<chunks.length;i++){
+      const key = `${PDF_PREFIX_CLIENT}${bundleId}:${i}`;
+      const ok = await rawSetAwaited(key, chunks[i]);
+      if(!ok){
+        for(const k of writtenChunkKeys) await rawDelete(k);
+        return false;
+      }
+      writtenChunkKeys.push(key);
+    }
+
+    const weekKey = `mkg:week:${week.id}`;
+    const currentWeek = DB[weekKey] || week;
+    const previousBundle = currentWeek.onePagerBundle;
+    const publicToken = currentWeek.onePagerPublicToken
+      || (window.crypto && crypto.randomUUID ? crypto.randomUUID() : uid() + uid());
+
+    await commitFieldEdit(weekKey, o => {
+      o.onePagerPublicToken = publicToken;
+      o.onePagerBundle = {
+        id: bundleId,
+        chunkCount: chunks.length,
+        generatedAt: Date.now(),
+        companyKeys: includedItems.map(it => it.key),
+        companyNames: includedItems.map(it => it.name),
+        emailSentAt: (previousBundle && previousBundle.emailSentAt) || null,
+      };
+    });
+
+    if(previousBundle && previousBundle.id && previousBundle.id !== bundleId){
+      const oldChunkKeys = await fetchRemoteKeys(`${PDF_PREFIX_CLIENT}${previousBundle.id}:`);
+      oldChunkKeys.forEach(k => deleteItemLocal(k));
+    }
+    return true;
+  }catch(e){
+    console.error('One-Pager bundle save failed', e);
+    return false;
+  }
+}
+
+// Persistent (must-dismiss) report of a merge outcome — used both when the
+// merge is fully successful-but-partial (some files skipped) and when it
+// fails entirely (included === 0), so a skipped file is always something the
+// person has to see and act on, never something a toast quietly swallows.
+function showOnePagerMergeResultModal({ included, total, skipped, title: titleOverride, subtitle: subtitleOverride }){
+  const root = document.getElementById('modalRoot');
+  const close = () => { root.innerHTML = ''; };
+  const allFailed = included === 0;
+  const title = titleOverride || (allFailed
+    ? '⚠️ Aucun One-Pager n\'a pu être regroupé'
+    : `⚠️ PPTX généré avec ${included}/${total} One-Pager${included>1?'s':''} seulement`);
+  const subtitle = subtitleOverride || (allFailed ? 'Aucun fichier n\'a pu être lu ou fusionné.' : 'Le PPTX téléchargé ne contient PAS ces One-Pagers :');
+  const rows = skipped.map(s => `
+    <div class="onepager-skip-row">
+      <div class="onepager-skip-name">${escapeHtml(s.name)}</div>
+      <div class="onepager-skip-reason">${escapeHtml(s.reason)}</div>
+    </div>`).join('');
+
+  root.innerHTML = `
+    <div class="modal-overlay chart-modal" id="onePagerResultOverlay">
+      <div class="modal">
+        <div class="chart-modal-header">
+          <div>
+            <h3>${title}</h3>
+            <div class="chart-modal-sub">${subtitle}</div>
+          </div>
+          <span class="chart-icon-btn" id="onePagerResultCloseBtn" title="Fermer" style="background:#f2f3f7;color:#5a6072;">✕</span>
+        </div>
+        <div class="onepager-skip-list">${rows}</div>
+        <div style="margin-top:14px;text-align:right;">
+          <button class="btn btn-primary btn-sm" id="onePagerResultOkBtn">Compris</button>
+        </div>
+      </div>
+    </div>`;
+  document.getElementById('onePagerResultCloseBtn').onclick = close;
+  document.getElementById('onePagerResultOkBtn').onclick = close;
+  document.getElementById('onePagerResultOverlay').addEventListener('click', (e)=>{ if(e.target.id==='onePagerResultOverlay') close(); });
+}
+
+// ---------- One-Pager status bar (count + regroup/download/send) ----------
+function onePagerActionsBarHTML(week, pptxCount, totalCompanyCount){
+  if(!week || totalCompanyCount === 0) return '';
+  const bundle = week.onePagerBundle;
+  let html = `<span class="onepager-status-bar">`;
+  html += `<span class="onepager-status-count">📎 One-Pagers : ${pptxCount}/${totalCompanyCount}</span>`;
+  html += `<button class="btn btn-ghost btn-sm" id="groupOnePagersBtn">📎 Regrouper les One-Pagers (.pptx)</button>`;
+  if(bundle){
+    html += `<button class="btn btn-ghost btn-sm" id="downloadOnePagerBundleBtn">⬇️ Télécharger le PPTX</button>`;
+    html += `<button class="btn btn-primary btn-sm" id="sendOnePagersEmailBtn">✉️ Envoyer aux maîtres de stage</button>`;
+    if(bundle.emailSentAt){
+      const d = new Date(bundle.emailSentAt);
+      html += `<span class="onepager-sent-note">Envoyé le ${d.toLocaleDateString('fr-FR')} à ${d.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})}</span>`;
+    }
+  }
+  html += `</span>`;
+  return html;
+}
+
+// Re-downloads the already-persisted merged PPTX without re-running the
+// merge — distinct from groupOnePagers(), which regenerates it from the
+// companies' current files. Uses fetchOnePagerBytes()'s exact same
+// reconstruction path: a bundle is structurally identical to a One-Pager
+// for this purpose (an {id, chunks-in-Firestore} pair), it just isn't tied
+// to one company.
+async function downloadOnePagerBundle(){
+  const week = state.weeks.find(w=>w.id===state.activeWeek);
+  const bundle = week && week.onePagerBundle;
+  if(!bundle){
+    showToast('Regroupe d\'abord les One-Pagers avant de télécharger.');
+    return;
+  }
+  showToast('Préparation du téléchargement...');
+  const bytes = await fetchOnePagerBytes({ id: bundle.id, uploadedAt: bundle.generatedAt });
+  if(!bytes){
+    showToast('⚠️ Impossible de récupérer le PPTX regroupé — réessaie, ou regénère-le.');
+    return;
+  }
+  triggerBrowserDownload(bytes, ONEPAGER_MIME_BY_FORMAT.pptx, onePagerGroupFileName(week));
+}
+
+// English on purpose (unlike the rest of this French admin interface) — this
+// exact string is what the mentors, the email's actual audience, see: in the
+// email subject/body and on the public consultation page. Forced to UTC so
+// a plain 'YYYY-MM-DD' always reads back as the same calendar day regardless
+// of the viewer's browser timezone (the classic new Date('2026-09-15')
+// off-by-one-day pitfall in negative-UTC-offset timezones).
+function formatPresentationDateEnglish(iso){
+  if(!iso) return '';
+  const d = new Date(iso + 'T00:00:00Z');
+  if(isNaN(d.getTime())) return '';
+  return new Intl.DateTimeFormat('en-US', { weekday:'long', month:'long', day:'numeric', year:'numeric', timeZone:'UTC' }).format(d);
+}
+
+function onePagersPublicUrl(weekId, publicToken){
+  return `${location.origin}/?op=${encodeURIComponent(weekId)}:${encodeURIComponent(publicToken)}`;
+}
+
+let onePagersEmailInFlight = false;
+
+// Sends the "here are this week's ideas" email to the mentors. Gated by two
+// checks the spec calls out explicitly: a presentation date must exist (the
+// email must never fall back to guessing one from the week label), and the
+// set of companies actually in the LAST generated bundle must still match
+// what's on screen right now — if someone added/removed/replaced a
+// One-Pager since the last "Regrouper", that PPTX is stale and must be
+// regenerated before anything gets sent, rather than mailing a link to
+// content that doesn't match what the email text describes.
+async function sendOnePagersEmail(){
+  if(onePagersEmailInFlight) return;
+  const week = state.weeks.find(w=>w.id===state.activeWeek);
+  const bundle = week && week.onePagerBundle;
+  if(!bundle){
+    showToast('Regroupe d\'abord les One-Pagers avant d\'envoyer.');
+    return;
+  }
+  if(!week.presentationDate){
+    showToast('⚠️ Renseigne la date de présentation avant d\'envoyer (champ en haut de la page).');
+    return;
+  }
+
+  const currentWithFile = sortCompaniesForDisplay(state.contentItems.filter(it=>it.name && it.onePagerFile));
+  const currentKeys = currentWithFile.map(it=>it.key).slice().sort();
+  const bundleKeys = (bundle.companyKeys||[]).slice().sort();
+  const sameSet = currentKeys.length === bundleKeys.length && currentKeys.every((k,i)=>k===bundleKeys[i]);
+  if(!sameSet){
+    showOnePagerMergeResultModal({
+      included: 0, total: 0, skipped: [],
+      title: '⚠️ Le PPTX regroupé n\'est plus à jour',
+      subtitle: 'La liste des One-Pagers a changé depuis le dernier regroupement (fichier ajouté, supprimé ou remplacé). Clique sur "Regrouper les One-Pagers" pour régénérer le PPTX avant d\'envoyer — l\'envoi a été bloqué pour éviter de partager un fichier incomplet.',
+    });
+    return;
+  }
+
+  const dateLabel = formatPresentationDateEnglish(week.presentationDate);
+  const companyNames = currentWithFile.map(it=>it.name);
+  const publicUrl = onePagersPublicUrl(week.id, week.onePagerPublicToken);
+
+  if(!confirm(`Envoyer les ${companyNames.length} One-Pager(s) aux deux maîtres de stage ?\n\nDate de présentation : ${dateLabel}`)) return;
+
+  onePagersEmailInFlight = true;
+  const btn = document.getElementById('sendOnePagersEmailBtn');
+  if(btn){ btn.disabled = true; btn.textContent = '⏳ Envoi en cours...'; }
+  showToast('Envoi de l\'email en cours...');
+
+  try{
+    const res = await fetch('/api/send-onepagers-email', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ dateLabel, companyNames, publicUrl }),
+    });
+    // The HTTP status alone was never enough — the server can answer 200
+    // with a body that still says ok:false in principle, and a 2xx here
+    // only ever meant "the mail provider accepted the request", never
+    // "the email was delivered". Always read the actual JSON body instead
+    // of trusting res.ok by itself, and never claim "envoyé avec succès"
+    // for what's really just "accepté par le service d'envoi".
+    let result = null;
+    try{ result = await res.json(); }catch(e){ /* non-JSON error body, handled by the !res.ok branch's own text() below */ }
+
+    if(!res.ok || !result || result.ok !== true){
+      const reason = (result && result.error) || await res.text().catch(()=>null) || `Échec de l'envoi (HTTP ${res.status})`;
+      throw new Error(reason);
+    }
+
+    await commitFieldEdit(`mkg:week:${week.id}`, o => {
+      if(o.onePagerBundle){
+        o.onePagerBundle.emailSentAt = Date.now();
+        o.onePagerBundle.emailMessageId = result.messageId || null;
+      }
+    });
+    refreshData();
+    showEmailSendResultModal({ ok:true, messageId: result.messageId, recipientCount: result.recipientCount });
+  }catch(e){
+    console.error('sendOnePagersEmail failed', e);
+    showEmailSendResultModal({ ok:false, error: e.message });
+  }finally{
+    onePagersEmailInFlight = false;
+    const liveBtn = document.getElementById('sendOnePagersEmailBtn');
+    if(liveBtn){ liveBtn.disabled = false; liveBtn.textContent = '✉️ Envoyer aux maîtres de stage'; }
+  }
+}
+
+// Persistent (must-dismiss), honest report of the send outcome — deliberately
+// never says "envoyé avec succès": a 2xx from the provider only means the
+// message was ACCEPTED for processing, not that it reached an inbox. The
+// messageId is what lets you look the actual delivery status up in Brevo's
+// own dashboard (Transactional > Email Activity), which is the only place
+// that can confirm sent/delivered/bounced/blocked — no API response at
+// send-time can promise that.
+function showEmailSendResultModal({ ok, messageId, recipientCount, error }){
+  const root = document.getElementById('modalRoot');
+  const close = () => { root.innerHTML = ''; };
+  const title = ok ? '✅ Email accepté par le service d\'envoi' : '❌ L\'email n\'a pas pu être envoyé';
+  const subtitle = ok
+    ? `La livraison peut encore être en cours — ceci confirme que Brevo a reçu la demande, pas qu'elle est arrivée dans la boîte de réception.`
+    : `Erreur : ${escapeHtml(error || 'raison inconnue')}`;
+  const details = ok
+    ? `<div class="onepager-skip-row"><div class="onepager-skip-name">Destinataires</div><div class="onepager-skip-reason">${recipientCount || '—'}</div></div>
+       <div class="onepager-skip-row"><div class="onepager-skip-name">Message ID</div><div class="onepager-skip-reason">${escapeHtml(messageId || 'non fourni par le service')}</div></div>`
+    : '';
+
+  root.innerHTML = `
+    <div class="modal-overlay chart-modal" id="emailResultOverlay">
+      <div class="modal">
+        <div class="chart-modal-header">
+          <div>
+            <h3>${title}</h3>
+            <div class="chart-modal-sub">${subtitle}</div>
+          </div>
+          <span class="chart-icon-btn" id="emailResultCloseBtn" title="Fermer" style="background:#f2f3f7;color:#5a6072;">✕</span>
+        </div>
+        <div class="onepager-skip-list">${details}</div>
+        <div style="margin-top:14px;text-align:right;">
+          <button class="btn btn-primary btn-sm" id="emailResultOkBtn">Compris</button>
+        </div>
+      </div>
+    </div>`;
+  document.getElementById('emailResultCloseBtn').onclick = close;
+  document.getElementById('emailResultOkBtn').onclick = close;
+  document.getElementById('emailResultOverlay').addEventListener('click', (e)=>{ if(e.target.id==='emailResultOverlay') close(); });
 }
 
 function addContentItemInline(cat){
@@ -3976,10 +4713,24 @@ document.addEventListener('focusout', (e) => {
     newVal = parseFloat(raw.replace(',','.')) || 0;
   }
   if(obj[field] !== newVal){
-    commitFieldEdit(key, o => { o[field] = newVal; });
+    // A week's label often only becomes a real "07 - 11 SEPTEMBRE"-style date
+    // range once it's renamed after creation (it starts as "Nouvelle
+    // semaine", which has no date to parse) — so this is the actual moment a
+    // default presentationDate first becomes computable for a brand-new
+    // week. Only fills it in if nothing is saved yet: never overwrites a
+    // date the user (or a previous rename) already set.
+    const isWeekLabel = field === 'label' && key.indexOf('mkg:week:') === 0;
+    const defaultDate = (isWeekLabel && !obj.presentationDate) ? computeDefaultPresentationDateISO(newVal) : '';
+    commitFieldEdit(key, o => {
+      o[field] = newVal;
+      if(defaultDate && !o.presentationDate) o.presentationDate = defaultDate;
+    });
     if(field === 'label'){
       const w = state.weeks.find(w=>w.id === key.replace('mkg:week:',''));
-      if(w) w.label = newVal;
+      if(w){
+        w.label = newVal;
+        if(defaultDate && !w.presentationDate) w.presentationDate = defaultDate;
+      }
       renderWeeksBar();
     }
     if(key.indexOf('mkg:portfolio:') === 0 && (field === 'entreprise' || field === 'date' || field === 'symbol')){
@@ -5374,7 +6125,87 @@ function applyDeepLinkFromUrl(){
   goToSearchResult(weekId, catId, key || '');
 }
 
+// ---------- Public One-Pagers consultation page (?op=<weekId>:<token>) ----------
+// A separate, read-only, English-language view of a single week's merged
+// One-Pager PPTX — the page the emailed link (sendOnePagersEmail) points
+// mentors to. Deliberately NOT the admin app in a "read-only mode": it never
+// runs the normal init() (no bulk loadAllFromServer() of the entire
+// database, no edit UI, no other weeks/tabs), so a mentor opening the link
+// costs a handful of targeted Firestore reads, not a full-database read
+// against the same free quota that's already been exhausted once before.
+function parseOnePagersLinkParam(){
+  const raw = new URLSearchParams(location.search).get('op');
+  if(!raw) return null;
+  const sep = raw.indexOf(':');
+  if(sep === -1) return null;
+  return { weekId: raw.slice(0, sep), token: raw.slice(sep + 1) };
+}
+
+function publicOnePagersNotFoundHTML(){
+  return `<div class="public-onepagers-page">
+    <div class="public-onepagers-card">
+      <h2>Link not found</h2>
+      <p>This link is invalid or no longer points to an available set of One-Pagers. Please contact Makor Morning News for an updated link.</p>
+    </div>
+  </div>`;
+}
+
+function publicOnePagersPageHTML({ dateLabel, companyNames }){
+  const companiesHTML = companyNames.length
+    ? `<ul class="public-onepagers-companies">${companyNames.map(n=>`<li>${escapeHtml(n)}</li>`).join('')}</ul>`
+    : `<p class="public-onepagers-companies-empty">No companies listed.</p>`;
+  return `<div class="public-onepagers-page">
+    <div class="public-onepagers-card">
+      <div class="public-onepagers-brand">MAKOR GROUP · Morning News</div>
+      <h2>${escapeHtml(dateLabel || 'Presentation')}</h2>
+      <div class="public-onepagers-sub">Companies presented</div>
+      ${companiesHTML}
+      <button class="btn btn-primary" id="publicDownloadBtn">Download all One-Pagers (.pptx)</button>
+      <div class="public-onepagers-status" id="publicDownloadStatus"></div>
+    </div>
+  </div>`;
+}
+
+async function initPublicOnePagersPage(weekId, token){
+  document.body.classList.add('public-mode');
+  const container = document.getElementById('container');
+  container.innerHTML = '<div class="loading">Loading...</div>';
+
+  const weekRaw = await fetchRawKey(`mkg:week:${weekId}`);
+  let week = null;
+  try{ week = weekRaw ? JSON.parse(weekRaw) : null; }catch(e){ /* corrupt row — treated as not found below */ }
+  const bundle = week && week.onePagerBundle;
+
+  // Every one of these must hold: a real week, a real bundle, a token on
+  // the week, and it must match the token in the URL — a missing token
+  // check here would mean the weekId ALONE (short, sequential-ish, and
+  // already visible in admin search-result deep links) is enough to reach
+  // any week's bundle, defeating the whole point of the random token.
+  if(!week || !bundle || !week.onePagerPublicToken || week.onePagerPublicToken !== token){
+    container.innerHTML = publicOnePagersNotFoundHTML();
+    return;
+  }
+
+  const dateLabel = formatPresentationDateEnglish(week.presentationDate);
+  container.innerHTML = publicOnePagersPageHTML({ dateLabel, companyNames: bundle.companyNames || [] });
+
+  document.getElementById('publicDownloadBtn').onclick = async () => {
+    const status = document.getElementById('publicDownloadStatus');
+    status.textContent = 'Preparing download...';
+    const bytes = await fetchOnePagerBytes({ id: bundle.id, uploadedAt: bundle.generatedAt });
+    if(!bytes){
+      status.textContent = 'Could not retrieve the file — please try again in a moment.';
+      return;
+    }
+    triggerBrowserDownload(bytes, ONEPAGER_MIME_BY_FORMAT.pptx, onePagerGroupFileName(week));
+    status.textContent = '';
+  };
+}
+
 async function init(){
+  const opParam = parseOnePagersLinkParam();
+  if(opParam){ await initPublicOnePagersPage(opParam.weekId, opParam.token); return; }
+
   document.getElementById('container').innerHTML = '<div class="loading">Chargement...</div>';
   let fresh = readDbCache();
   if(fresh){
@@ -5387,6 +6218,8 @@ async function init(){
   }
 
   seedIfNeeded();
+  migrateOnePagerToTwoSlots();
+  migrateOnePagerToPptxOnly();
   migrateIaFintech();
   migratePortfolioSection();
   stripLeadingBulletArrows();
@@ -5400,6 +6233,7 @@ async function init(){
   backfillPortfolioSymbols();
   backfillKnownSeedWeekSymbols();
   backfillCompanyPlaceholderFields();
+  backfillWeekPresentationDates();
   state.weeks = loadWeeks();
   const marchWeek = state.weeks.find(w=>w.id===SEED_WEEK_ID);
   const lastWeek = localStorage.getItem('mkg:lastActiveWeek');

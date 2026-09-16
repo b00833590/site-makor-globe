@@ -4,5 +4,7 @@ webapp/dist/
 .worktrees/
 .vercel
 .env*
+__pycache__/
+*.pyc
 .claude/
 /node_modules/

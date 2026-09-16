@@ -2,7 +2,7 @@ import { initializeApp } from 'firebase/app';
 import { getFirestore, collection, getDocs, getDoc, doc, setDoc, deleteDoc, serverTimestamp, writeBatch, query, where, documentId, onSnapshot } from 'firebase/firestore';
 
 const DEFAULT_CONFIG = {
-  apiKey: 'AIzaSyDSq-wkq28uEsU3CO5WT6aW0CQgU1SW7bk',
+  apiKey: 'AIzaSyAuzA0QqvpiHNb7FXgGa2oDOIua6Djv8wM',
   authDomain: 'makor-morning-news.firebaseapp.com',
   projectId: 'makor-morning-news',
   storageBucket: 'makor-morning-news.firebasestorage.app',
