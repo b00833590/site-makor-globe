@@ -1757,9 +1757,17 @@ function getGroupColor(weekId, group){
 
 // ---------- Actualisation des cours en direct (Yahoo Finance, via Apps Script pour éviter le blocage CORS) ----------
 
+// Keyed by exact index display name. Several indices are known to exist under
+// more than one spelling across weeks/rows (e.g. "KOSPI" vs "KOSPI 200",
+// "S&P/TSX 60" vs "S&P TSX 60" — see the same dual entries in MARKET_TIMEZONES
+// below), so both spellings are listed here too — otherwise a row using the
+// spelling missing from this table silently falls into "Sans symbole Yahoo"
+// and never gets live-refreshed at all, even though it's one of the 14 core
+// indices. Euro Stoxx 50 / Euronext 100 previously had no entry whatsoever.
 const MARKET_TICKERS = {
   'S&P/ASX 200': { symbol:'^AXJO' },
   'Nikkei 225': { symbol:'^N225' },
+  'KOSPI': { symbol:'^KS11', note:'KOSPI Composite (approximation — pas de KOSPI 200 disponible)' },
   'KOSPI 200': { symbol:'^KS11', note:'KOSPI Composite (approximation — pas de KOSPI 200 disponible)' },
   'CSI 300': { symbol:'000300.SS' },
   'Nifty 50': { symbol:'^NSEI' },
@@ -1767,9 +1775,12 @@ const MARKET_TICKERS = {
   'CAC 40': { symbol:'^FCHI' },
   'DAX 40': { symbol:'^GDAXI' },
   'FTSE 100': { symbol:'^FTSE' },
+  'Euro Stoxx 50': { symbol:'^STOXX50E' },
+  'Euronext 100': { symbol:'^N100' },
   'S&P 500': { symbol:'^GSPC' },
   'Nasdaq': { symbol:'^IXIC' },
   'Dow Jones': { symbol:'^DJI' },
+  'S&P/TSX 60': { symbol:'^GSPTSE', note:'S&P/TSX Composite (approximation — pas de TSX 60 disponible)' },
   'S&P TSX 60': { symbol:'^GSPTSE', note:'S&P/TSX Composite (approximation — pas de TSX 60 disponible)' },
   'Or (once)': { symbol:'GC=F' },
   'Argent (once)': { symbol:'SI=F' },
@@ -1880,94 +1891,160 @@ function resolveMarketTicker(it){
   return MARKET_TICKERS[it.name] || null;
 }
 
-async function refreshMarketQuotes(){
-  const items = loadMarketItems(state.activeWeek);
-  // Split, don't silently drop: indices with no resolvable Yahoo ticker used to
-  // vanish from `eligible` with no trace — now they're reported by name at the end.
-  const withTicker = [], withoutTicker = [];
-  items.forEach(it => (resolveMarketTicker(it) ? withTicker : withoutTicker).push(it));
+// How many indices we fetch at once. The quote relay is a stateless Apps
+// Script endpoint (no Sheet/LockService involved, unlike the legacy PDF-chunk
+// backend), so modest parallelism is safe — this is a deliberate cap, not the
+// browser's own connection limit, so a slow/quota-limited relay can't have
+// 25 requests all in flight at once.
+const MARKET_REFRESH_CONCURRENCY = 6;
 
-  if(withTicker.length === 0){
-    showToast(withoutTicker.length
-      ? `Aucun de ces ${withoutTicker.length} indices n'a de symbole Yahoo — renseigne le champ symbole (mode édition)`
-      : 'Aucun indice à actualiser pour cette semaine');
-    return;
+// Guards against a second "Actualiser les cours en direct" click starting a
+// second overlapping run while one is already in flight.
+let marketRefreshInFlight = false;
+
+// Fetches + computes everything needed for ONE index — current price plus the
+// two reference closes — with the two network calls run in parallel. Never
+// touches DB: it only ever returns a plain result, so a failure here can't
+// leave "Cours" and "Semaine"/"YTD" written from different runs.
+async function fetchMarketItemUpdate(it, map){
+  const todayISO = exchangeTodayISO(it.name);
+  const fridayCalendar = mostRecentFridayBefore(todayISO);
+  const prevYearEndISO = (parseInt(todayISO.slice(0,4),10) - 1) + '-12-31';
+  const historySinceISO = (parseInt(todayISO.slice(0,4),10) - 1) + '-12-20'; // comfortably before prevYearEndISO, covers holiday shifts
+
+  // Semaine/YTD are NOT taken from the API's own weekChange/ytdChange —
+  // there's no guarantee those match "vendredi précédent -> dernier cours
+  // disponible" (they could be a rolling 7-day change, a different session
+  // count, etc.). Instead: pull real daily closes and compute both
+  // percentages ourselves from the exact reference dates, from the SAME
+  // `value` as "Cours" below, so the three columns can never disagree.
+  const [q, hist] = await Promise.all([
+    fetchQuote(map.symbol),
+    fetchQuoteHistory(map.symbol, historySinceISO),
+  ]);
+
+  if(q && q.error){
+    if(isQuoteServiceDown(q.error)) return { name: it.name, status: 'service-down' };
+    return { name: it.name, status: 'failed', reason: 'introuvable' };
+  }
+  if(!q || q.value == null){
+    // Partial payload — writing it would push NaN into value.
+    return { name: it.name, status: 'failed', reason: 'données incomplètes' };
+  }
+  if(hist && hist.error && isQuoteServiceDown(hist.error)){
+    return { name: it.name, status: 'service-down' };
   }
 
-  const updated = [], failed = [];   // failed: { name, reason }
-  const notes = new Set();
-  let serviceDown = false;
-  showToast(`Actualisation des cours... (0/${withTicker.length})`);
+  const points = hist && Array.isArray(hist.points) ? hist.points : null;
+  const fridayPoint = points && closeOnOrBefore(points, fridayCalendar);
+  const yearEndPoint = points && closeOnOrBefore(points, prevYearEndISO);
+  if(!fridayPoint || !yearEndPoint){
+    return { name: it.name, status: 'failed', reason: 'historique de cours indisponible' };
+  }
 
-  for(let i=0;i<withTicker.length;i++){
-    const it = withTicker[i];
-    const map = resolveMarketTicker(it);
-    const q = await fetchQuote(map.symbol);
+  let value = q.value, fridayClose = fridayPoint.close, yearEndClose = yearEndPoint.close;
+  if(map.invert){ value = 1/value; fridayClose = 1/fridayClose; yearEndClose = 1/yearEndClose; }
+  return {
+    name: it.name, status: 'ok', note: map.note,
+    value,
+    weekChange: (value / fridayClose - 1) * 100,
+    ytdChange: (value / yearEndClose - 1) * 100,
+  };
+}
 
-    if(q && q.error){
-      if(isQuoteServiceDown(q.error)){ serviceDown = true; break; }
-      failed.push({ name: it.name, reason: 'introuvable' });
-    } else if(!q || q.value == null){
-      // Partial payload — writing it would push NaN into value.
-      failed.push({ name: it.name, reason: 'données incomplètes' });
-    } else {
-      // Semaine/YTD are NOT taken from the API's own weekChange/ytdChange —
-      // there's no guarantee those match "vendredi précédent -> dernier cours
-      // disponible" (they could be a rolling 7-day change, a different
-      // session count, etc.). Instead: pull real daily closes and compute both
-      // percentages ourselves from the exact reference dates, so the result
-      // is correct on any day of the week, including the Monday case where
-      // "last Friday" must stay the week before (never today, never last week).
-      const todayISO = exchangeTodayISO(it.name);
-      const fridayCalendar = mostRecentFridayBefore(todayISO);
-      const prevYearEndISO = (parseInt(todayISO.slice(0,4),10) - 1) + '-12-31';
-      const historySinceISO = (parseInt(todayISO.slice(0,4),10) - 1) + '-12-20'; // comfortably before prevYearEndISO, covers holiday shifts
+// Runs `worker` over `items` with at most `limit` in flight at once. The
+// moment any result comes back 'service-down' (a global Apps Script quota/
+// auth failure — every remaining call would fail identically), stops
+// launching NEW work, while letting the calls already in flight finish.
+async function runWithBoundedConcurrency(items, limit, worker){
+  const results = [];
+  let next = 0, serviceDown = false;
+  async function runSlot(){
+    while(!serviceDown){
+      const i = next++;
+      if(i >= items.length) return;
+      const r = await worker(items[i]);
+      results.push(r);
+      if(r.status === 'service-down') serviceDown = true;
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, runSlot));
+  return { results, serviceDown, notAttempted: items.length - results.length };
+}
 
-      const hist = await fetchQuoteHistory(map.symbol, historySinceISO);
-      const points = hist && Array.isArray(hist.points) ? hist.points : null;
-      const fridayPoint = points && closeOnOrBefore(points, fridayCalendar);
-      const yearEndPoint = points && closeOnOrBefore(points, prevYearEndISO);
+async function refreshMarketQuotes(){
+  // Prevents a second concurrent run if the button is clicked again before
+  // the first finishes — without this, two overlapping runs interleave their
+  // writes to the same rows.
+  if(marketRefreshInFlight){ showToast('Actualisation déjà en cours...'); return; }
+  marketRefreshInFlight = true;
+  const btn = document.getElementById('refreshQuotesBtn');
+  const btnDefaultLabel = '📡 Actualiser les cours en direct';
+  if(btn){ btn.disabled = true; btn.textContent = '⏳ Actualisation en cours...'; }
 
-      if(!fridayPoint || !yearEndPoint){
-        failed.push({ name: it.name, reason: 'historique de cours indisponible' });
-      } else {
-        let value = q.value, fridayClose = fridayPoint.close, yearEndClose = yearEndPoint.close;
-        if(map.invert){ value = 1/value; fridayClose = 1/fridayClose; yearEndClose = 1/yearEndClose; }
-        const weekChange = (value / fridayClose - 1) * 100;
-        const ytdChange = (value / yearEndClose - 1) * 100;
-        const key = `mkg:market:${state.activeWeek}:${it.id}`;
-        const obj = DB[key];
-        obj.weekChange = Math.round(weekChange*100)/100;
-        obj.ytdChange = Math.round(ytdChange*100)/100;
-        obj.value = formatMarketValue(obj.value, value);
-        setItemLocal(key, obj);
-        if(map.note) notes.add(map.note);
-        updated.push(it.name);
-      }
+  try{
+    const items = loadMarketItems(state.activeWeek);
+    // Split, don't silently drop: indices with no resolvable Yahoo ticker used to
+    // vanish from `eligible` with no trace — now they're reported by name at the end.
+    const withTicker = [], withoutTicker = [];
+    items.forEach(it => (resolveMarketTicker(it) ? withTicker : withoutTicker).push(it));
+
+    if(withTicker.length === 0){
+      showToast(withoutTicker.length
+        ? `Aucun de ces ${withoutTicker.length} indices n'a de symbole Yahoo — renseigne le champ symbole (mode édition)`
+        : 'Aucun indice à actualiser pour cette semaine');
+      return;
     }
 
-    if(i % 3 === 0) showToast(`Actualisation des cours... (${i+1}/${withTicker.length})`);
-    await new Promise(r=>setTimeout(r, 150));
-  }
+    showToast(`Actualisation des cours... (0/${withTicker.length})`);
+    let done = 0;
+    const { results, serviceDown, notAttempted } = await runWithBoundedConcurrency(withTicker, MARKET_REFRESH_CONCURRENCY, async (it) => {
+      const map = resolveMarketTicker(it);
+      const r = await fetchMarketItemUpdate(it, map);
+      if(r.status === 'ok'){
+        const key = `mkg:market:${state.activeWeek}:${it.id}`;
+        const obj = DB[key];
+        obj.weekChange = Math.round(r.weekChange*100)/100;
+        obj.ytdChange = Math.round(r.ytdChange*100)/100;
+        obj.value = formatMarketValue(obj.value, r.value);
+        setItemLocal(key, obj);
+      }
+      done++;
+      if(done % 3 === 0) showToast(`Actualisation des cours... (${done}/${withTicker.length})`);
+      return r;
+    });
 
-  refreshData();
+    const updated = results.filter(r => r.status === 'ok').map(r => r.name);
+    const failed = results.filter(r => r.status === 'failed'); // { name, reason }
+    const notes = new Set(results.filter(r => r.note).map(r => r.note));
 
-  if(serviceDown){
-    showToast(`⚠️ Service de cotation Google indisponible (quota journalier dépassé). ${
-      updated.length
-        ? updated.length + ' indice(s) actualisé(s) avant la coupure — relance plus tard pour le reste.'
-        : 'Aucun indice modifié — réessaie plus tard.'}`);
-    console.warn('[refreshMarketQuotes] service KO après', updated.length, 'succès — restants non tentés');
-    return;
-  }
+    refreshData();
 
-  let msg = `${updated.length}/${withTicker.length} indice(s) mis à jour`;
-  if(failed.length) msg += `. Échec : ${failed.map(f=>f.name).join(', ')}`;
-  if(withoutTicker.length) msg += `. Sans symbole Yahoo : ${withoutTicker.map(it=>it.name).join(', ')}`;
-  if(notes.size) msg += `. (${[...notes].join(' ; ')})`;
-  showToast(msg);
-  if(failed.length || withoutTicker.length){
-    console.warn('[refreshMarketQuotes] non actualisés', { failed, sansSymbole: withoutTicker.map(it=>it.name) });
+    if(serviceDown){
+      showToast(`⚠️ Service de cotation Google indisponible (quota journalier dépassé). ${
+        updated.length
+          ? updated.length + ' indice(s) actualisé(s) avant la coupure — relance plus tard pour le reste.'
+          : 'Aucun indice modifié — réessaie plus tard.'}`);
+      console.warn('[refreshMarketQuotes] service KO après', updated.length, 'succès —', notAttempted, 'restants non tentés');
+      return;
+    }
+
+    let msg = `${updated.length}/${withTicker.length} indice(s) mis à jour`;
+    if(failed.length) msg += `. Échec : ${failed.map(f=>f.name).join(', ')}`;
+    if(withoutTicker.length) msg += `. Sans symbole Yahoo : ${withoutTicker.map(it=>it.name).join(', ')}`;
+    if(notes.size) msg += `. (${[...notes].join(' ; ')})`;
+    showToast(msg);
+    if(failed.length || withoutTicker.length){
+      console.warn('[refreshMarketQuotes] non actualisés', { failed, sansSymbole: withoutTicker.map(it=>it.name) });
+    }
+  } finally {
+    marketRefreshInFlight = false;
+    // renderMarket() (via refreshData() above) already redrew a fresh, enabled
+    // button in the success path — this is a no-op there, and the only path
+    // that actually needs it (early "nothing to refresh" return, or a thrown
+    // error) where no re-render happened.
+    const liveBtn = document.getElementById('refreshQuotesBtn');
+    if(liveBtn){ liveBtn.disabled = false; liveBtn.textContent = btnDefaultLabel; }
   }
 }
 
@@ -3983,8 +4060,9 @@ async function fetchQuoteHistory(symbol, sinceISO){
   try{
     const res = await fetch(`${QUOTE_API_URL}?action=quoteHistory&symbol=${encodeURIComponent(symbol)}&since=${encodeURIComponent(sinceISO)}`);
     const data = await res.json();
-    return data.error ? null : data;
-  }catch(e){ return null; }
+    if(data && data.error) return { error: String(data.error) };
+    return data;
+  }catch(e){ return { error: 'network: ' + (e && e.message || e) }; }
 }
 
 function chartLineSVG(points){
