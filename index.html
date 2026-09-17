@@ -2586,8 +2586,6 @@ function renderCompanies(){
   wireOnePagerControls(c);
   const groupBtn = document.getElementById('groupOnePagersBtn');
   if(groupBtn) groupBtn.onclick = groupOnePagers;
-  const downloadBundleBtn = document.getElementById('downloadOnePagerBundleBtn');
-  if(downloadBundleBtn) downloadBundleBtn.onclick = downloadOnePagerBundle;
   const sendBtn = document.getElementById('sendOnePagersEmailBtn');
   if(sendBtn) sendBtn.onclick = sendOnePagersEmail;
   wirePresentationDateField(c);
@@ -4037,7 +4035,7 @@ function showOnePagerMergeResultModal({ included, total, skipped, title: titleOv
   document.getElementById('onePagerResultOverlay').addEventListener('click', (e)=>{ if(e.target.id==='onePagerResultOverlay') close(); });
 }
 
-// ---------- One-Pager status bar (count + regroup/download/send) ----------
+// ---------- One-Pager status bar (count + regroup/send) ----------
 function onePagerActionsBarHTML(week, pptxCount, totalCompanyCount){
   if(!week || totalCompanyCount === 0) return '';
   const bundle = week.onePagerBundle;
@@ -4045,7 +4043,6 @@ function onePagerActionsBarHTML(week, pptxCount, totalCompanyCount){
   html += `<span class="onepager-status-count">📎 One-Pagers : ${pptxCount}/${totalCompanyCount}</span>`;
   html += `<button class="btn btn-ghost btn-sm" id="groupOnePagersBtn">📎 Regrouper les One-Pagers (.pptx)</button>`;
   if(bundle){
-    html += `<button class="btn btn-ghost btn-sm" id="downloadOnePagerBundleBtn">⬇️ Télécharger le PPTX</button>`;
     html += `<button class="btn btn-primary btn-sm" id="sendOnePagersEmailBtn">✉️ Envoyer aux maîtres de stage</button>`;
     if(bundle.emailSentAt){
       const d = new Date(bundle.emailSentAt);
@@ -4054,28 +4051,6 @@ function onePagerActionsBarHTML(week, pptxCount, totalCompanyCount){
   }
   html += `</span>`;
   return html;
-}
-
-// Re-downloads the already-persisted merged PPTX without re-running the
-// merge — distinct from groupOnePagers(), which regenerates it from the
-// companies' current files. Uses fetchOnePagerBytes()'s exact same
-// reconstruction path: a bundle is structurally identical to a One-Pager
-// for this purpose (an {id, chunks-in-Firestore} pair), it just isn't tied
-// to one company.
-async function downloadOnePagerBundle(){
-  const week = state.weeks.find(w=>w.id===state.activeWeek);
-  const bundle = week && week.onePagerBundle;
-  if(!bundle){
-    showToast('Regroupe d\'abord les One-Pagers avant de télécharger.');
-    return;
-  }
-  showToast('Préparation du téléchargement...');
-  const bytes = await fetchOnePagerBytes({ id: bundle.id, uploadedAt: bundle.generatedAt });
-  if(!bytes){
-    showToast('⚠️ Impossible de récupérer le PPTX regroupé — réessaie, ou regénère-le.');
-    return;
-  }
-  triggerBrowserDownload(bytes, ONEPAGER_MIME_BY_FORMAT.pptx, onePagerGroupFileName(week));
 }
 
 // English on purpose (unlike the rest of this French admin interface) — this
