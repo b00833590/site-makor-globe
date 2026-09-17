@@ -584,7 +584,7 @@ const CATEGORIES = [
   {id:'indices', label:'Indices', icon:'📈', type:'market'},
   {id:'news', label:'News', icon:'📰', type:'content'},
   {id:'entreprises', label:'Entreprises', icon:'🏢', type:'company'},
-  {id:'ia-fintech', label:'IA & Fintech', icon:'🤖', type:'content'},
+  {id:'ia-fintech', label:'Présentation IA', icon:'🤖', type:'content'},
 ];
 const CATEGORY_LABELS = Object.fromEntries(CATEGORIES.map(c=>[c.id,c.label]));
 const PASSWORD = "makor2023";
@@ -4479,7 +4479,7 @@ async function manualRefresh(){
 function deleteWeek(weekId){
   const week = state.weeks.find(w=>w.id===weekId);
   if(!week) return;
-  if(!confirm(`Supprimer définitivement "${week.label}" et toutes ses données (indices, entreprises, news, IA & Fintech) ?`)) return;
+  if(!confirm(`Supprimer définitivement "${week.label}" et toutes ses données (indices, entreprises, news, Présentation IA) ?`)) return;
 
   keysWithPrefix(`mkg:market:${weekId}:`).forEach(k => deleteItemLocal(k));
   CATEGORIES.filter(cat => cat.type !== 'market').forEach(cat=>{
