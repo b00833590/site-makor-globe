@@ -305,6 +305,10 @@
   .bullet-text{flex:1;font-size:13.5px;line-height:1.7;color:#3a4051;white-space:pre-line;}
   .bullet-add{margin-top:8px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
   .bullet-row .del-btn{flex-shrink:0;font-size:13px;line-height:1.7;margin-top:2px;}
+  .bullet-drag-handle{flex-shrink:0;cursor:grab;color:var(--muted);font-size:13px;line-height:1.7;margin-top:2px;user-select:none;}
+  .bullet-drag-handle:active{cursor:grabbing;}
+  .bullet-row.dragging{opacity:.4;}
+  .bullet-row.drag-over{border-top:2px solid var(--gold);}
   .onepager-chip{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--text);
     background:#f4f5f9;border:1px solid var(--line);border-radius:8px;padding:5px 10px;cursor:pointer;}
   .onepager-chip:hover{border-color:var(--gold);}
@@ -393,7 +397,7 @@
   .pdf-export .company-body{ font-size:9px; line-height:1.35; }
   .pdf-export .bullet-row{ padding:3px 0; }
   .pdf-export .bullet-text{ font-size:9px; line-height:1.35; }
-  .pdf-export .color-dot, .pdf-export .del-btn, .pdf-export .bullet-add{ display:none !important; }
+  .pdf-export .color-dot, .pdf-export .del-btn, .pdf-export .bullet-add, .pdf-export .bullet-drag-handle{ display:none !important; }
   .pdf-export .portfolio-section-title{ font-size:15px; margin:16px 0 8px; }
   .pdf-export .portfolio-section-title span{ display:none; }
   .pdf-export .portfolio-grid{ gap:8px; margin-bottom:8px; }
@@ -2533,7 +2537,8 @@ function renderCompanies(){
         </div>
         <div class="company-bullets">
           ${(it.bullets||[]).map((b,i)=>`
-            <div class="bullet-row">
+            <div class="bullet-row" data-bullet-key="${it.key}" data-bullet-idx="${i}">
+              ${state.isEditing?`<span class="bullet-drag-handle" draggable="true" title="Glisser pour réordonner">⠿</span>`:''}
               <span class="bullet-triangle">▶</span>
               <div class="bullet-text inline-edit" data-key="${it.key}" data-field="bullet" data-bullet-index="${i}" data-colorable="1" data-colorable-field="bullet-${i}" ${ce()} ${colorStyleAttr(it,'bullet-'+i)}>${escapeHtml(b)}</div>
               ${state.isEditing?`<span class="del-btn" data-del-bullet="${it.key}|${i}">✕</span>`:''}
@@ -2583,6 +2588,7 @@ function renderCompanies(){
   c.querySelectorAll('[data-compare-toggle]').forEach(el=>{
     el.onclick = (e) => { e.stopPropagation(); toggleCompareSelection(el.getAttribute('data-compare-toggle')); };
   });
+  if(state.isEditing) wireBulletDragAndDrop(c);
   wireOnePagerControls(c);
   const groupBtn = document.getElementById('groupOnePagersBtn');
   if(groupBtn) groupBtn.onclick = groupOnePagers;
@@ -2591,6 +2597,81 @@ function renderCompanies(){
   wirePresentationDateField(c);
   renderCompareBar();
   wirePortfolioSection(c);
+}
+
+// ---------- Points clés: réordonnancement par glisser-déposer ----------
+// Native HTML5 drag-and-drop, started only from the dedicated handle (not the
+// bullet text itself, which is contenteditable — starting a drag from inside
+// it would fight with text selection/cursor placement). commitFieldEdit
+// applies the same splice/insert to `bullets` as delete/add already do, so it
+// gets the same optimistic update + Firestore transaction + undo support.
+function reorderBulletColors(colors, fromIdx, toIdx, length){
+  // Per-bullet color overrides are stored by index ("bullet-0", "bullet-1", …),
+  // not by content, so a plain array reorder would leave a color pinned to
+  // the wrong bullet. Extract them into a parallel array, apply the identical
+  // splice/insert, then write them back at their new indices.
+  const byIndex = new Array(length);
+  for(let i=0;i<length;i++){
+    const v = colors['bullet-'+i];
+    if(v) byIndex[i] = v;
+    delete colors['bullet-'+i];
+  }
+  const [moved] = byIndex.splice(fromIdx, 1);
+  byIndex.splice(toIdx, 0, moved);
+  byIndex.forEach((v,i)=>{ if(v) colors['bullet-'+i] = v; });
+}
+
+function moveBullet(key, fromIdx, toIdx){
+  if(fromIdx === toIdx) return;
+  commitFieldEdit(key, o => {
+    if(!Array.isArray(o.bullets)) return;
+    const len = o.bullets.length;
+    if(fromIdx < 0 || fromIdx >= len || toIdx < 0 || toIdx >= len) return;
+    const [moved] = o.bullets.splice(fromIdx, 1);
+    o.bullets.splice(toIdx, 0, moved);
+    if(o.colors) reorderBulletColors(o.colors, fromIdx, toIdx, len);
+  });
+  refreshData();
+}
+
+function wireBulletDragAndDrop(root){
+  let dragKey = null, dragFromIdx = null;
+  const clearDragOver = () => root.querySelectorAll('.bullet-row.drag-over').forEach(r=>r.classList.remove('drag-over'));
+
+  root.querySelectorAll('.bullet-drag-handle').forEach(handle=>{
+    handle.addEventListener('dragstart', (e)=>{
+      const row = handle.closest('.bullet-row');
+      dragKey = row.getAttribute('data-bullet-key');
+      dragFromIdx = parseInt(row.getAttribute('data-bullet-idx'), 10);
+      row.classList.add('dragging');
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', String(dragFromIdx)); // required by Firefox to allow the drag
+    });
+    handle.addEventListener('dragend', ()=>{
+      root.querySelectorAll('.bullet-row.dragging').forEach(r=>r.classList.remove('dragging'));
+      clearDragOver();
+      dragKey = null; dragFromIdx = null;
+    });
+  });
+
+  root.querySelectorAll('.bullet-row').forEach(row=>{
+    row.addEventListener('dragover', (e)=>{
+      if(dragKey === null || row.getAttribute('data-bullet-key') !== dragKey) return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      row.classList.add('drag-over');
+    });
+    row.addEventListener('dragleave', ()=> row.classList.remove('drag-over'));
+    row.addEventListener('drop', (e)=>{
+      if(dragKey === null || row.getAttribute('data-bullet-key') !== dragKey) return;
+      e.preventDefault();
+      clearDragOver();
+      const toIdx = parseInt(row.getAttribute('data-bullet-idx'), 10);
+      const key = dragKey, fromIdx = dragFromIdx;
+      dragKey = null; dragFromIdx = null;
+      moveBullet(key, fromIdx, toIdx);
+    });
+  });
 }
 
 // ---------- Vue "changements de la semaine" ----------
