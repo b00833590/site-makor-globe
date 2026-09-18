@@ -2281,7 +2281,13 @@ async function refreshMarketQuotes(){
   if(btn){ btn.disabled = true; btn.textContent = '⏳ Actualisation en cours...'; }
 
   try{
-    const items = loadMarketItems(state.activeWeek);
+    // Captured once and reused for every write below — state.activeWeek can
+    // change mid-run if the person switches weeks while a refresh is still
+    // in flight, and re-reading it at write time would silently write these
+    // results under whatever week happens to be active when each request
+    // resolves, instead of the week that was actually refreshed.
+    const weekId = state.activeWeek;
+    const items = loadMarketItems(weekId);
     // Split, don't silently drop: indices with no resolvable Yahoo ticker used to
     // vanish from `eligible` with no trace — now they're reported by name at the end.
     const withTicker = [], withoutTicker = [];
@@ -2301,7 +2307,7 @@ async function refreshMarketQuotes(){
       const map = resolveMarketTicker(it);
       const r = await fetchMarketItemUpdate(it, map);
       if(r.status === 'ok'){
-        const key = `mkg:market:${state.activeWeek}:${it.id}`;
+        const key = `mkg:market:${weekId}:${it.id}`;
         const obj = DB[key];
         obj.weekChange = Math.round(r.weekChange*100)/100;
         obj.ytdChange = Math.round(r.ytdChange*100)/100;
