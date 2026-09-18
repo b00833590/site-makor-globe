@@ -309,6 +309,42 @@
   .bullet-drag-handle:active{cursor:grabbing;}
   .bullet-row.dragging{opacity:.4;}
   .bullet-row.drag-over{border-top:2px solid var(--gold);}
+
+  /* Rich Points-clés blocks (list/table/image/chart) */
+  .bullet-toolbar{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0;padding:8px;background:#f8f8fb;border:1px solid var(--line);border-radius:8px;}
+  .bullet-toolbar .btn{font-size:11.5px;padding:4px 9px;}
+  .bullet-toolbar .btn-fmt{font-weight:700;}
+  .bullet-block{flex:1;min-width:0;}
+  .bullet-list-block{display:flex;flex-direction:column;gap:2px;}
+  .bullet-list-row{display:flex;align-items:flex-start;gap:6px;}
+  .bullet-list-dot{color:var(--gold);flex-shrink:0;margin-top:3px;font-size:11px;}
+  .bullet-list-item{flex:1;font-size:13px;line-height:1.6;color:#3a4051;white-space:pre-line;min-width:0;}
+  .bullet-list-row .del-btn{flex-shrink:0;font-size:12px;margin-top:2px;}
+  .bullet-block-add-btn{margin-top:4px;align-self:flex-start;}
+  .bullet-table-block-wrap{overflow-x:auto;}
+  .bullet-table-block{border-collapse:collapse;width:100%;font-size:12.5px;margin:4px 0;}
+  .bullet-table-block th, .bullet-table-block td{border:1px solid var(--line);padding:5px 8px;text-align:left;}
+  .bullet-table-block th{background:#f8f8fb;font-weight:700;}
+  .bullet-table-cell{min-width:36px;white-space:pre-line;}
+  .bullet-table-row-actions{border:none !important;padding:0 0 0 4px !important;vertical-align:middle;}
+  .bullet-table-actions{display:flex;gap:8px;margin-top:4px;}
+  .bullet-image-wrap{margin:4px 0;}
+  .bullet-image-block{max-width:100%;border-radius:6px;display:block;}
+  .bullet-image-placeholder{padding:16px;text-align:center;font-size:12px;color:var(--muted);background:#f8f8fb;border:1px dashed var(--line);border-radius:8px;}
+  .bullet-image-actions{display:flex;align-items:center;gap:10px;margin-top:6px;flex-wrap:wrap;}
+  .bullet-chart-wrap{margin:4px 0;}
+  .bullet-chart-empty{padding:16px;text-align:center;font-size:12px;color:var(--muted);background:#f8f8fb;border:1px dashed var(--line);border-radius:8px;}
+  .bullet-chart-legend{display:flex;gap:12px;flex-wrap:wrap;margin-top:4px;font-size:11.5px;color:var(--muted);}
+  .bullet-chart-legend span{display:inline-flex;align-items:center;gap:5px;}
+  .bullet-chart-legend i{width:9px;height:9px;border-radius:2px;display:inline-block;}
+  .bullet-chart-editor{display:flex;flex-direction:column;gap:6px;margin-top:8px;padding:8px;background:#f8f8fb;border:1px solid var(--line);border-radius:8px;font-size:11.5px;}
+  .bullet-chart-editor label{display:flex;flex-direction:column;gap:2px;color:var(--muted);}
+  .bullet-chart-editor input, .bullet-chart-editor select{font-size:12px;padding:4px 6px;border:1px solid var(--line);border-radius:5px;font-family:inherit;}
+  .bullet-chart-series-row{display:flex;gap:6px;align-items:center;}
+  .bullet-chart-series-name{flex:0 0 110px;}
+  .bullet-chart-series-data{flex:1;min-width:0;}
+  .pdf-export .bullet-toolbar, .pdf-export .bullet-image-actions, .pdf-export .bullet-chart-editor,
+  .pdf-export .bullet-table-actions, .pdf-export .bullet-block-add-btn{ display:none !important; }
   .onepager-chip{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--text);
     background:#f4f5f9;border:1px solid var(--line);border-radius:8px;padding:5px 10px;cursor:pointer;}
   .onepager-chip:hover{border-color:var(--gold);}
@@ -1826,10 +1862,10 @@ function buildCompaniesReportHTML(weekId){
         <div><div class="stat-label">${escapeHtml(it.targetPriceLabel||'TARGET PRICE')}</div><div class="stat-value" ${colorStyleAttr(it,'targetPrice')}>${escapeHtml(it.targetPrice||'—')}</div></div>
       </div>
       <div class="company-bullets">
-        ${(it.bullets||[]).map((b,i)=>`
+        ${(it.bullets||[]).map((block,i)=>`
           <div class="bullet-row">
-            <span class="bullet-triangle">▶</span>
-            <span class="bullet-text" ${colorStyleAttr(it,'bullet-'+i)}>${escapeHtml(b)}</span>
+            ${block.type==='text' || !block.type ? `<span class="bullet-triangle">▶</span>` : ''}
+            ${renderBulletBlockHTML(it, block, i, false)}
           </div>`).join('')}
       </div>
     </div>`;
@@ -2655,8 +2691,11 @@ function renderCompanies(){
       }
       if(!it.bullets){
         // One-time migration: split the old freeform "body" text into individual
-        // gold-triangle bullet points (blank-line separated blocks).
-        it.bullets = (it.body||'').split(/\n\s*\n/).map(s=>s.trim().replace(/^▶\s*/,'')).filter(Boolean);
+        // gold-triangle bullet points (blank-line separated blocks) — produced
+        // directly as 'text' blocks so this never creates a plain-string bullet
+        // that migrateBulletsToBlocks() (run once at startup, before this body
+        // ever existed as `bullets`) would have no chance to catch.
+        it.bullets = (it.body||'').split(/\n\s*\n/).map(s=>s.trim().replace(/^▶\s*/,'')).filter(Boolean).map(text=>({type:'text', text}));
         delete it.body;
         setItemLocal(it.key, it);
       }
@@ -2684,14 +2723,23 @@ function renderCompanies(){
           <div><div class="stat-label inline-edit" data-key="${it.key}" data-field="targetPriceLabel" ${ce()}>${escapeHtml(it.targetPriceLabel||'TARGET PRICE')}</div><div class="stat-value inline-edit" data-key="${it.key}" data-field="targetPrice" data-colorable="1" ${ce()} ${colorStyleAttr(it,'targetPrice')}>${escapeHtml(it.targetPrice||'—')}</div></div>
         </div>
         <div class="company-bullets">
-          ${(it.bullets||[]).map((b,i)=>`
+          ${state.isEditing?`<div class="bullet-toolbar">
+            <button class="btn btn-ghost btn-fmt" data-fmt-btn="bold" title="Mettre la sélection en gras">B</button>
+            <button class="btn btn-ghost btn-fmt" data-fmt-btn="italic" title="Mettre la sélection en italique"><i>I</i></button>
+            <button class="btn btn-ghost" data-add-block="${it.key}|text">+ Texte</button>
+            <button class="btn btn-ghost" data-add-block="${it.key}|list">• Liste</button>
+            <button class="btn btn-ghost" data-add-block="${it.key}|table">Tableau</button>
+            <button class="btn btn-ghost" data-add-block="${it.key}|image">Image</button>
+            <button class="btn btn-ghost" data-add-block="${it.key}|chart">Graphique</button>
+          </div>`:''}
+          ${(it.bullets||[]).map((block,i)=>`
             <div class="bullet-row" data-bullet-key="${it.key}" data-bullet-idx="${i}">
               ${state.isEditing?`<span class="bullet-drag-handle" draggable="true" title="Glisser pour réordonner">⠿</span>`:''}
-              <span class="bullet-triangle">▶</span>
-              <div class="bullet-text inline-edit" data-key="${it.key}" data-field="bullet" data-bullet-index="${i}" data-colorable="1" data-colorable-field="bullet-${i}" ${ce()} ${colorStyleAttr(it,'bullet-'+i)}>${escapeHtml(b)}</div>
-              ${state.isEditing?`<span class="del-btn" data-del-bullet="${it.key}|${i}">✕</span>`:''}
+              ${block.type==='text' || !block.type ? `<span class="bullet-triangle">▶</span>` : ''}
+              ${renderBulletBlockHTML(it, block, i, state.isEditing)}
+              ${state.isEditing?`<span class="del-btn" data-del-block="${it.key}|${i}">✕</span>`:''}
             </div>`).join('')}
-          ${(state.isEditing || it.onePagerFile)?`<div class="bullet-add">${state.isEditing?`<button class="btn btn-ghost btn-sm" data-add-bullet="${it.key}">+ Point clé</button>`:''}${onePagerControlHTML(it)}</div>`:''}
+          ${(state.isEditing || it.onePagerFile)?`<div class="bullet-add">${onePagerControlHTML(it)}</div>`:''}
         </div>
       </div>`;
     });
@@ -2702,31 +2750,7 @@ function renderCompanies(){
 
   c.innerHTML = html;
   wirePageActions(c, 'addCompanyBtn', addCompanyInline);
-  c.querySelectorAll('[data-del-bullet]').forEach(el=>{
-    el.onclick = (e) => {
-      e.stopPropagation();
-      const [key, idxStr] = el.getAttribute('data-del-bullet').split('|');
-      const obj = DB[key];
-      if(!obj) return;
-      const idx = parseInt(idxStr,10);
-      commitFieldEdit(key, o => { if(Array.isArray(o.bullets)) o.bullets.splice(idx, 1); });
-      refreshData();
-    };
-  });
-  c.querySelectorAll('[data-add-bullet]').forEach(el=>{
-    el.onclick = () => {
-      const key = el.getAttribute('data-add-bullet');
-      const obj = DB[key];
-      if(!obj) return;
-      commitFieldEdit(key, o => { o.bullets = o.bullets || []; o.bullets.push('Nouveau point clé'); });
-      refreshData();
-      setTimeout(()=>{
-        const els = document.querySelectorAll(`[data-key="${CSS.escape(key)}"][data-field="bullet"]`);
-        const last = els[els.length-1];
-        if(last){ last.focus(); selectAllText(last); }
-      }, 30);
-    };
-  });
+  wireBulletBlockControls(c);
   c.querySelectorAll('[data-del]').forEach(el=>{
     el.onclick = (e) => { e.stopPropagation(); confirmDeleteContent(el.getAttribute('data-del')); };
   });
@@ -2740,6 +2764,8 @@ function renderCompanies(){
   wireOnePagerControls(c);
   const groupBtn = document.getElementById('groupOnePagersBtn');
   if(groupBtn) groupBtn.onclick = groupOnePagers;
+  const sendCompaniesBtn = document.getElementById('sendCompaniesEmailBtn');
+  if(sendCompaniesBtn) sendCompaniesBtn.onclick = sendCompaniesEmail;
   const sendBtn = document.getElementById('sendOnePagersEmailBtn');
   if(sendBtn) sendBtn.onclick = sendOnePagersEmail;
   wirePresentationDateField(c);
@@ -2767,6 +2793,262 @@ function reorderBulletColors(colors, fromIdx, toIdx, length){
   const [moved] = byIndex.splice(fromIdx, 1);
   byIndex.splice(toIdx, 0, moved);
   byIndex.forEach((v,i)=>{ if(v) colors['bullet-'+i] = v; });
+}
+
+// Resizes+compresses an uploaded image client-side before it's ever stored.
+// Images are kept as an inline data URL directly on the block (no separate
+// chunked-storage plumbing like One-Pagers/presentations use) — deliberately
+// simpler, since a Points-clé image is a small illustrative chart/logo, not a
+// multi-MB file. ponytail: capped at ~900px wide / JPEG q0.82 so a normal
+// photo stays comfortably inside Firestore's 1MB per-document limit even
+// alongside a company's other fields; if this ever needs to hold several
+// full-resolution images per card, move to the chunked mechanism instead of
+// compressing harder.
+function resizeImageFileToDataUrl(file){
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error('lecture du fichier échouée'));
+    reader.onload = () => {
+      const img = new Image();
+      img.onerror = () => reject(new Error('image illisible'));
+      img.onload = () => {
+        const maxW = 900;
+        const scale = Math.min(1, maxW / img.width);
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.round(img.width * scale);
+        canvas.height = Math.round(img.height * scale);
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = '#ffffff'; // JPEG has no alpha — flatten transparent PNGs onto white
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        resolve(canvas.toDataURL('image/jpeg', 0.82));
+      };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+// Every control inside a Points-clé block (add/delete a block, list items,
+// table rows/cols, image upload/width, chart fields, bold/italic formatting)
+// — kept in one place, re-bound after every render exactly like
+// wireBulletDragAndDrop/wireOnePagerControls already are.
+function wireBulletBlockControls(c){
+  c.querySelectorAll('[data-del-block]').forEach(el=>{
+    el.onclick = (e) => {
+      e.stopPropagation();
+      const [key, idxStr] = el.getAttribute('data-del-block').split('|');
+      const idx = parseInt(idxStr,10);
+      commitFieldEdit(key, o => { if(Array.isArray(o.bullets)) o.bullets.splice(idx, 1); });
+      refreshData();
+    };
+  });
+  c.querySelectorAll('[data-add-block]').forEach(el=>{
+    el.onclick = () => {
+      const [key, type] = el.getAttribute('data-add-block').split('|');
+      const obj = DB[key];
+      if(!obj) return;
+      commitFieldEdit(key, o => { o.bullets = o.bullets || []; o.bullets.push(newBulletBlock(type)); });
+      refreshData();
+      if(type === 'text'){
+        setTimeout(()=>{
+          const els = document.querySelectorAll(`[data-key="${CSS.escape(key)}"][data-field="bullet"]`);
+          const last = els[els.length-1];
+          if(last){ last.focus(); selectAllText(last); }
+        }, 30);
+      }
+    };
+  });
+  c.querySelectorAll('[data-fmt-btn]').forEach(el=>{
+    el.addEventListener('mousedown', (e)=>{
+      e.preventDefault(); // don't let the button steal the click
+      // Real clicks move document.activeElement to <body> even with the
+      // preventDefault above (verified live — a known Chrome quirk for
+      // mousedown on a <button>), but the Selection/Range itself survives
+      // that focus change untouched, and execCommand works off the Range
+      // regardless of activeElement. So this checks the selection's own
+      // anchor — not activeElement — to confirm it's actually inside a
+      // Points-clé text field before formatting it.
+      const sel = window.getSelection();
+      const anchorEl = sel && sel.anchorNode && (sel.anchorNode.nodeType === 3 ? sel.anchorNode.parentElement : sel.anchorNode);
+      const field = anchorEl && anchorEl.closest('[data-field="bullet"]');
+      if(!sel || sel.isCollapsed || !field){
+        showToast('Sélectionne du texte dans un point clé avant de cliquer.');
+        return;
+      }
+      const marker = el.getAttribute('data-fmt-btn') === 'bold' ? '**' : '*';
+      document.execCommand('insertText', false, marker + sel.toString() + marker);
+    });
+  });
+
+  // ---- List items ----
+  c.querySelectorAll('[data-add-list-item]').forEach(el=>{
+    el.onclick = () => {
+      const [key, idxStr] = el.getAttribute('data-add-list-item').split('|');
+      const idx = parseInt(idxStr,10);
+      commitFieldEdit(key, o => {
+        const block = o.bullets && o.bullets[idx];
+        if(block && block.type === 'list'){ block.items = block.items || []; block.items.push('Nouvel élément'); }
+      });
+      refreshData();
+    };
+  });
+  c.querySelectorAll('[data-del-list-item]').forEach(el=>{
+    el.onclick = (e) => {
+      e.stopPropagation();
+      const [key, idxStr, itemStr] = el.getAttribute('data-del-list-item').split('|');
+      const idx = parseInt(idxStr,10), itemIdx = parseInt(itemStr,10);
+      commitFieldEdit(key, o => {
+        const block = o.bullets && o.bullets[idx];
+        if(block && block.type === 'list' && Array.isArray(block.items)) block.items.splice(itemIdx, 1);
+      });
+      refreshData();
+    };
+  });
+
+  // ---- Table rows/columns ----
+  c.querySelectorAll('[data-add-table-row]').forEach(el=>{
+    el.onclick = () => {
+      const [key, idxStr] = el.getAttribute('data-add-table-row').split('|');
+      const idx = parseInt(idxStr,10);
+      commitFieldEdit(key, o => {
+        const block = o.bullets && o.bullets[idx];
+        if(block && block.type === 'table'){
+          const cols = (block.rows && block.rows[0] && block.rows[0].length) || 1;
+          block.rows = block.rows || [];
+          block.rows.push(new Array(cols).fill(''));
+        }
+      });
+      refreshData();
+    };
+  });
+  c.querySelectorAll('[data-add-table-col]').forEach(el=>{
+    el.onclick = () => {
+      const [key, idxStr] = el.getAttribute('data-add-table-col').split('|');
+      const idx = parseInt(idxStr,10);
+      commitFieldEdit(key, o => {
+        const block = o.bullets && o.bullets[idx];
+        if(block && block.type === 'table' && Array.isArray(block.rows)) block.rows.forEach(row => row.push(''));
+      });
+      refreshData();
+    };
+  });
+  c.querySelectorAll('[data-del-table-row]').forEach(el=>{
+    el.onclick = (e) => {
+      e.stopPropagation();
+      const [key, idxStr, rowStr] = el.getAttribute('data-del-table-row').split('|');
+      const idx = parseInt(idxStr,10), rowIdx = parseInt(rowStr,10);
+      commitFieldEdit(key, o => {
+        const block = o.bullets && o.bullets[idx];
+        if(block && block.type === 'table' && Array.isArray(block.rows)) block.rows.splice(rowIdx, 1);
+      });
+      refreshData();
+    };
+  });
+
+  // ---- Image upload / width ----
+  c.querySelectorAll('[data-image-upload]').forEach(el=>{
+    el.onchange = async () => {
+      const file = el.files && el.files[0];
+      if(!file) return;
+      const [key, idxStr] = el.getAttribute('data-image-upload').split('|');
+      const idx = parseInt(idxStr,10);
+      let dataUrl;
+      try{ dataUrl = await resizeImageFileToDataUrl(file); }
+      catch(e){ showToast('⚠️ Image illisible — réessaie avec un autre fichier.'); return; }
+      commitFieldEdit(key, o => {
+        const block = o.bullets && o.bullets[idx];
+        if(block && block.type === 'image') block.dataUrl = dataUrl;
+      });
+      refreshData();
+    };
+  });
+  c.querySelectorAll('[data-image-width]').forEach(el=>{
+    el.onchange = () => {
+      const [key, idxStr] = el.getAttribute('data-image-width').split('|');
+      const idx = parseInt(idxStr,10);
+      const widthPct = parseInt(el.value,10) || 100;
+      commitFieldEdit(key, o => {
+        const block = o.bullets && o.bullets[idx];
+        if(block && block.type === 'image') block.widthPct = widthPct;
+      });
+      refreshData();
+    };
+  });
+
+  // ---- Chart controls ----
+  c.querySelectorAll('[data-chart-type]').forEach(el=>{
+    el.onchange = () => {
+      const [key, idxStr] = el.getAttribute('data-chart-type').split('|');
+      const idx = parseInt(idxStr,10);
+      commitFieldEdit(key, o => {
+        const block = o.bullets && o.bullets[idx];
+        if(block && block.type === 'chart') block.chartType = el.value;
+      });
+      refreshData();
+    };
+  });
+  c.querySelectorAll('[data-chart-labels]').forEach(el=>{
+    el.onchange = () => {
+      const [key, idxStr] = el.getAttribute('data-chart-labels').split('|');
+      const idx = parseInt(idxStr,10);
+      const labels = el.value.split(',').map(s=>s.trim()).filter(Boolean);
+      commitFieldEdit(key, o => {
+        const block = o.bullets && o.bullets[idx];
+        if(block && block.type === 'chart') block.labels = labels;
+      });
+      refreshData();
+    };
+  });
+  c.querySelectorAll('[data-chart-series-name]').forEach(el=>{
+    el.onchange = () => {
+      const [key, idxStr, seriesStr] = el.getAttribute('data-chart-series-name').split('|');
+      const idx = parseInt(idxStr,10), si = parseInt(seriesStr,10);
+      commitFieldEdit(key, o => {
+        const block = o.bullets && o.bullets[idx];
+        if(block && block.type === 'chart' && block.series && block.series[si]) block.series[si].name = el.value.trim();
+      });
+      refreshData();
+    };
+  });
+  c.querySelectorAll('[data-chart-series-data]').forEach(el=>{
+    el.onchange = () => {
+      const [key, idxStr, seriesStr] = el.getAttribute('data-chart-series-data').split('|');
+      const idx = parseInt(idxStr,10), si = parseInt(seriesStr,10);
+      const data = el.value.split(',').map(s => { const n = parseFloat(s.trim().replace(',','.')); return isNaN(n) ? 0 : n; });
+      commitFieldEdit(key, o => {
+        const block = o.bullets && o.bullets[idx];
+        if(block && block.type === 'chart' && block.series && block.series[si]) block.series[si].data = data;
+      });
+      refreshData();
+    };
+  });
+  c.querySelectorAll('[data-add-chart-series]').forEach(el=>{
+    el.onclick = () => {
+      const [key, idxStr] = el.getAttribute('data-add-chart-series').split('|');
+      const idx = parseInt(idxStr,10);
+      commitFieldEdit(key, o => {
+        const block = o.bullets && o.bullets[idx];
+        if(block && block.type === 'chart'){
+          block.series = block.series || [];
+          block.series.push({ name: 'Série '+(block.series.length+1), data: new Array((block.labels||[]).length).fill(0) });
+        }
+      });
+      refreshData();
+    };
+  });
+  c.querySelectorAll('[data-del-chart-series]').forEach(el=>{
+    el.onclick = (e) => {
+      e.stopPropagation();
+      const [key, idxStr, seriesStr] = el.getAttribute('data-del-chart-series').split('|');
+      const idx = parseInt(idxStr,10), si = parseInt(seriesStr,10);
+      commitFieldEdit(key, o => {
+        const block = o.bullets && o.bullets[idx];
+        if(block && block.type === 'chart' && Array.isArray(block.series) && block.series.length > 1) block.series.splice(si, 1);
+      });
+      refreshData();
+    };
+  });
 }
 
 function moveBullet(key, fromIdx, toIdx){
@@ -2820,6 +3102,173 @@ function wireBulletDragAndDrop(root){
       moveBullet(key, fromIdx, toIdx);
     });
   });
+}
+
+// ---------- Points clés riches : blocs typés (texte / liste / tableau / image / graphique) ----------
+// Bullets used to be a plain array of strings, each an inline-edit <div>
+// saved from innerText — deliberately never innerHTML, because contenteditable's
+// own HTML-on-save was exactly what earlier broke multi-line persistence (see
+// the paste/keydown handlers above). Rich content needs more than one line of
+// plain text can express, so each bullet is now a typed BLOCK object instead —
+// but the 'text' block keeps the exact same plain-text-only discipline: still
+// saved from innerText, still '\n' for line breaks, still rendered through the
+// same white-space:pre-line .bullet-text class. Bold/italic is a lightweight
+// **x**/*x* markup convention applied at DISPLAY time only (renderTextMarkup) —
+// the stored source of truth never contains HTML, so the old corruption class
+// of bug can't recur for this block type either. List items and table cells
+// follow the same plain-text-per-cell discipline. Only images (a resized data
+// URL) and charts (structured numbers) carry anything beyond plain text, and
+// neither is ever typed into a contenteditable field.
+function migrateBulletsToBlocks(){
+  keysWithPrefix('mkg:content:entreprises:').forEach(k=>{
+    const it = DB[k];
+    if(!it || !Array.isArray(it.bullets) || it.bullets.length === 0) return;
+    if(typeof it.bullets[0] !== 'string') return; // already migrated
+    it.bullets = it.bullets.map(b => ({ type:'text', text: String(b) }));
+    setItemLocal(k, it);
+  });
+}
+
+function newBulletBlock(type){
+  switch(type){
+    case 'list': return { type:'list', items:['Nouvel élément'] };
+    case 'table': return { type:'table', rows:[['Colonne 1','Colonne 2'],['','']] };
+    case 'image': return { type:'image', dataUrl:'', widthPct:100 };
+    case 'chart': return { type:'chart', chartType:'bar', labels:['2025','2026E'], series:[{ name:'Série 1', data:[0,0] }] };
+    default: return { type:'text', text:'Nouveau point clé' };
+  }
+}
+
+// Escaped first, so **/* markers can only ever wrap already-escaped text —
+// they never get a chance to be reinterpreted as real HTML.
+function renderTextMarkup(text){
+  return escapeHtml(text)
+    .replace(/\*\*(.+?)\*\*/g, '<b>$1</b>')
+    .replace(/(?<!\*)\*([^*]+?)\*(?!\*)/g, '<i>$1</i>');
+}
+
+function bulletBlockSearchText(block){
+  if(!block) return '';
+  if(block.type === 'list') return (block.items||[]).join(' ');
+  if(block.type === 'table') return (block.rows||[]).map(r=>r.join(' ')).join(' ');
+  if(block.type === 'chart') return [(block.labels||[]).join(' '), ...(block.series||[]).map(s=>s.name||'')].join(' ');
+  if(block.type === 'image') return '';
+  return block.text || '';
+}
+
+const BULLET_CHART_COLORS = ['#c9971f','#1c8a4b','#0f1730','#c0392b','#1a2340'];
+
+// Same hand-rolled inline-SVG approach as chartLineSVG() above (this app has
+// never pulled in a charting library) — extended to bar charts and multiple
+// series, using the same palette/typography as the rest of the site.
+function renderBulletChartSVG(block){
+  const labels = block.labels || [];
+  const series = (block.series || []).filter(s => Array.isArray(s.data) && s.data.length);
+  if(labels.length === 0 || series.length === 0) return '<div class="bullet-chart-empty">Graphique incomplet — renseigne les données.</div>';
+  const w = 520, h = 220, padL = 40, padR = 12, padT = 12, padB = 26;
+  const allValues = series.flatMap(s=>s.data.filter(v=>typeof v === 'number' && !isNaN(v)));
+  if(allValues.length === 0) return '<div class="bullet-chart-empty">Graphique incomplet — renseigne les données.</div>';
+  const max = Math.max(...allValues, 0), min = Math.min(...allValues, 0);
+  const span = (max - min) || 1;
+  const x = i => padL + (i / Math.max(labels.length - 1, 1)) * (w - padL - padR);
+  const y = v => padT + (1 - (v - min) / span) * (h - padT - padB);
+  const zeroY = y(0);
+
+  let marks = '';
+  if(block.chartType === 'line'){
+    series.forEach((s, si) => {
+      const color = BULLET_CHART_COLORS[si % BULLET_CHART_COLORS.length];
+      const pts = s.data.map((v,i)=> typeof v === 'number' ? `${x(i).toFixed(1)},${y(v).toFixed(1)}` : null).filter(Boolean).join(' ');
+      marks += `<polyline points="${pts}" fill="none" stroke="${color}" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"/>`;
+      s.data.forEach((v,i) => { if(typeof v === 'number') marks += `<circle cx="${x(i).toFixed(1)}" cy="${y(v).toFixed(1)}" r="2.6" fill="${color}"/>`; });
+    });
+  } else {
+    const groupW = (w - padL - padR) / labels.length;
+    const barW = Math.max(4, (groupW * 0.7) / series.length);
+    labels.forEach((_, i) => {
+      series.forEach((s, si) => {
+        const v = s.data[i]; if(typeof v !== 'number') return;
+        const bx = padL + i*groupW + groupW*0.15 + si*barW;
+        const by = Math.min(y(v), zeroY), bh = Math.abs(y(v) - zeroY);
+        marks += `<rect x="${bx.toFixed(1)}" y="${by.toFixed(1)}" width="${barW.toFixed(1)}" height="${Math.max(bh,0.5).toFixed(1)}" fill="${BULLET_CHART_COLORS[si % BULLET_CHART_COLORS.length]}" rx="2"/>`;
+      });
+    });
+  }
+
+  const xLabels = labels.map((l,i)=>`<text x="${x(i).toFixed(1)}" y="${h-8}" font-size="9.5" fill="#8a90a6" text-anchor="middle">${escapeHtml(String(l))}</text>`).join('');
+  const gridLine = `<line x1="${padL}" y1="${zeroY.toFixed(1)}" x2="${w-padR}" y2="${zeroY.toFixed(1)}" stroke="#eceef4" stroke-width="1"/>`;
+  const legend = series.length > 1
+    ? `<div class="bullet-chart-legend">${series.map((s,si)=>`<span><i style="background:${BULLET_CHART_COLORS[si % BULLET_CHART_COLORS.length]}"></i>${escapeHtml(s.name||'Série '+(si+1))}</span>`).join('')}</div>`
+    : '';
+
+  return `<svg viewBox="0 0 ${w} ${h}" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto;">${gridLine}${marks}${xLabels}</svg>${legend}`;
+}
+
+// One renderer, used identically by the live card (editable=state.isEditing)
+// and the PDF export (editable=false always, regardless of the page's own
+// current edit mode) — so the two can never visually drift apart, and a
+// table/image/chart looks in the exported PDF exactly like it looks on screen.
+function renderBulletBlockHTML(it, block, i, editable){
+  const key = it.key;
+  if(block.type === 'list'){
+    const items = block.items || [];
+    const rows = items.map((x,li)=>`<div class="bullet-list-row">
+        <span class="bullet-list-dot">•</span>
+        <div class="bullet-list-item inline-edit" data-list-item="1" data-key="${key}" data-block-idx="${i}" data-item-idx="${li}" ${editable?'contenteditable="true" spellcheck="false"':''}>${escapeHtml(x)}</div>
+        ${editable?`<span class="del-btn" data-del-list-item="${key}|${i}|${li}">✕</span>`:''}
+      </div>`).join('');
+    return `<div class="bullet-block bullet-list-block">${rows}${editable?`<button class="btn btn-ghost btn-sm bullet-block-add-btn" data-add-list-item="${key}|${i}">+ élément</button>`:''}</div>`;
+  }
+  if(block.type === 'table'){
+    const rows = block.rows || [];
+    const trs = rows.map((row,ri)=>`<tr>${row.map((cell,ci)=>{
+        const tag = ri===0 ? 'th' : 'td';
+        return `<${tag}><div class="bullet-table-cell inline-edit" data-table-cell="1" data-key="${key}" data-block-idx="${i}" data-row-idx="${ri}" data-col-idx="${ci}" ${editable?'contenteditable="true" spellcheck="false"':''}>${escapeHtml(cell)}</div></${tag}>`;
+      }).join('')}${editable?`<td class="bullet-table-row-actions"><span class="del-btn" data-del-table-row="${key}|${i}|${ri}">✕</span></td>`:''}</tr>`).join('');
+    return `<div class="bullet-block bullet-table-block-wrap">
+      <table class="bullet-table-block"><tbody>${trs}</tbody></table>
+      ${editable?`<div class="bullet-table-actions"><button class="btn btn-ghost btn-sm" data-add-table-row="${key}|${i}">+ ligne</button><button class="btn btn-ghost btn-sm" data-add-table-col="${key}|${i}">+ colonne</button></div>`:''}
+    </div>`;
+  }
+  if(block.type === 'image'){
+    const img = block.dataUrl ? `<img class="bullet-image-block" src="${block.dataUrl}" style="width:${block.widthPct||100}%" alt="">` : (editable ? '<div class="bullet-image-placeholder">Aucune image — clique sur "Choisir une image"</div>' : '');
+    if(!editable) return img ? `<div class="bullet-block bullet-image-wrap">${img}</div>` : '';
+    return `<div class="bullet-block bullet-image-wrap">
+      ${img}
+      <div class="bullet-image-actions">
+        <label class="btn btn-ghost btn-sm">🖼️ ${block.dataUrl?'Remplacer':'Choisir'} une image<input type="file" accept="image/*" data-image-upload="${key}|${i}" style="display:none;"></label>
+        ${block.dataUrl?`<input type="range" min="25" max="100" step="5" value="${block.widthPct||100}" data-image-width="${key}|${i}" title="Largeur de l'image">`:''}
+      </div>
+    </div>`;
+  }
+  if(block.type === 'chart'){
+    const chart = renderBulletChartSVG(block);
+    if(!editable) return `<div class="bullet-block bullet-chart-wrap">${chart}</div>`;
+    const series = block.series || [];
+    return `<div class="bullet-block bullet-chart-wrap">
+      ${chart}
+      <div class="bullet-chart-editor">
+        <label>Type
+          <select data-chart-type="${key}|${i}">
+            <option value="bar" ${block.chartType!=='line'?'selected':''}>Barres</option>
+            <option value="line" ${block.chartType==='line'?'selected':''}>Ligne</option>
+          </select>
+        </label>
+        <label>Années / catégories (séparées par des virgules)
+          <input type="text" data-chart-labels="${key}|${i}" value="${escapeAttr((block.labels||[]).join(', '))}">
+        </label>
+        ${series.map((s,si)=>`
+          <div class="bullet-chart-series-row">
+            <input type="text" class="bullet-chart-series-name" data-chart-series-name="${key}|${i}|${si}" value="${escapeAttr(s.name||'')}" placeholder="Nom de la série">
+            <input type="text" class="bullet-chart-series-data" data-chart-series-data="${key}|${i}|${si}" value="${escapeAttr((s.data||[]).join(', '))}" placeholder="Valeurs séparées par des virgules">
+            ${series.length>1?`<span class="del-btn" data-del-chart-series="${key}|${i}|${si}">✕</span>`:''}
+          </div>`).join('')}
+        <button class="btn btn-ghost btn-sm" data-add-chart-series="${key}|${i}">+ série</button>
+      </div>
+    </div>`;
+  }
+  // text
+  return `<div class="bullet-text inline-edit" data-key="${key}" data-field="bullet" data-bullet-index="${i}" data-colorable="1" data-colorable-field="bullet-${i}" ${editable?ce():''} ${colorStyleAttr(it,'bullet-'+i)}>${editable ? escapeHtml(block.text||'') : renderTextMarkup(block.text||'')}</div>`;
 }
 
 // ---------- Vue "changements de la semaine" ----------
@@ -4312,8 +4761,12 @@ function onePagerActionsBarHTML(week, pptxCount, totalCompanyCount){
   let html = `<span class="onepager-status-bar">`;
   html += `<span class="onepager-status-count">📎 One-Pagers : ${pptxCount}/${totalCompanyCount}</span>`;
   html += `<button class="btn btn-ghost btn-sm" id="groupOnePagersBtn">📎 Regrouper les One-Pagers (.pptx)</button>`;
+  // Companies-list email is independent of the PPTX bundle — it's meant to
+  // go out AHEAD of the presentation, so it's available as soon as there's
+  // at least one company, not gated on a bundle existing.
+  html += `<button class="btn btn-ghost btn-sm" id="sendCompaniesEmailBtn">📋 Envoyer les entreprises aux maîtres de stage</button>`;
   if(bundle){
-    html += `<button class="btn btn-primary btn-sm" id="sendOnePagersEmailBtn">✉️ Envoyer aux maîtres de stage</button>`;
+    html += `<button class="btn btn-primary btn-sm" id="sendOnePagersEmailBtn">✉️ Envoyer les One-Pagers aux maîtres de stage</button>`;
     if(bundle.emailSentAt){
       const d = new Date(bundle.emailSentAt);
       html += `<span class="onepager-sent-note">Envoyé le ${d.toLocaleDateString('fr-FR')} à ${d.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})}</span>`;
@@ -4424,7 +4877,70 @@ async function sendOnePagersEmail(){
   }finally{
     onePagersEmailInFlight = false;
     const liveBtn = document.getElementById('sendOnePagersEmailBtn');
-    if(liveBtn){ liveBtn.disabled = false; liveBtn.textContent = '✉️ Envoyer aux maîtres de stage'; }
+    if(liveBtn){ liveBtn.disabled = false; liveBtn.textContent = '✉️ Envoyer les One-Pagers aux maîtres de stage'; }
+  }
+}
+
+let sendCompaniesEmailInFlight = false;
+
+// Sends the "companies to be presented" list ahead of the presentation —
+// deliberately independent of the One-Pager bundle (no PPTX required),
+// reusing the exact same date-source and recipient plumbing as
+// sendOnePagersEmail above so both emails stay consistent if either one
+// changes later.
+async function sendCompaniesEmail(){
+  if(sendCompaniesEmailInFlight) return;
+  const week = state.weeks.find(w=>w.id===state.activeWeek);
+  if(!week || !week.presentationDate){
+    showToast('⚠️ Renseigne la date de présentation avant d\'envoyer (champ en haut de la page).');
+    return;
+  }
+
+  const companies = sortCompaniesForDisplay(state.contentItems.filter(it=>it.name)).map(it => ({
+    name: it.name,
+    ticker: it.yahooSymbol || '',
+    country: it.country || '',
+    flag: it.flag || '',
+    region: it.region || '',
+  }));
+  if(companies.length === 0){
+    showToast('Aucune entreprise à envoyer pour cette semaine.');
+    return;
+  }
+
+  const dateLabel = formatPresentationDateFR(week.presentationDate);
+  if(!confirm(`Envoyer la liste des ${companies.length} entreprise(s) présentées aux maîtres de stage ?\n\nDate de présentation : ${dateLabel}`)) return;
+
+  sendCompaniesEmailInFlight = true;
+  const btn = document.getElementById('sendCompaniesEmailBtn');
+  if(btn){ btn.disabled = true; btn.textContent = '⏳ Envoi en cours...'; }
+  const progress = openProgressPanel('Envoi de la liste des entreprises');
+  progress.update({ step: 'Envoi vers le service d\'email...' }); // single network call — not measurable, stays indeterminate
+
+  try{
+    const res = await fetch('/api/send-companies-email', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ dateLabel, companies }),
+    });
+    let result = null;
+    try{ result = await res.json(); }catch(e){ /* non-JSON error body, handled below */ }
+
+    if(!res.ok || !result || result.ok !== true){
+      const reason = (result && result.error) || await res.text().catch(()=>null) || `Échec de l'envoi (HTTP ${res.status})`;
+      throw new Error(reason);
+    }
+
+    progress.close();
+    showEmailSendResultModal({ ok:true, messageId: result.messageId, recipientCount: result.recipientCount });
+  }catch(e){
+    console.error('sendCompaniesEmail failed', e);
+    progress.close();
+    showEmailSendResultModal({ ok:false, error: e.message });
+  }finally{
+    sendCompaniesEmailInFlight = false;
+    const liveBtn = document.getElementById('sendCompaniesEmailBtn');
+    if(liveBtn){ liveBtn.disabled = false; liveBtn.textContent = '📋 Envoyer les entreprises aux maîtres de stage'; }
   }
 }
 
@@ -4564,7 +5080,7 @@ function buildSearchIndex(){
           if(!it.name) return; // legacy non-company blob, ignore
           title = it.name;
           snippet = [it.ticker, it.country].filter(Boolean).join(' · ');
-          text = [it.name, it.ticker, it.country, it.region, ...(it.bullets||[])].filter(Boolean).join(' ');
+          text = [it.name, it.ticker, it.country, it.region, ...(it.bullets||[]).map(bulletBlockSearchText)].filter(Boolean).join(' ');
         } else {
           title = it.title || '(sans titre)';
           snippet = it.description || '';
@@ -4929,6 +5445,29 @@ document.addEventListener('focusout', (e) => {
     return;
   }
 
+  // Rich Points-clé sub-fields (list item / table cell) — plain-text-only,
+  // same discipline as the 'bullet' field below, just one level deeper into
+  // the block. Bounds-checked against the FRESH server copy for the same
+  // reason 'bullet' already is: no stable id, matched by array position.
+  if(el.dataset.listItem){
+    const blockKey = el.dataset.key, blockIdx = parseInt(el.dataset.blockIdx,10), itemIdx = parseInt(el.dataset.itemIdx,10);
+    const raw = (el.innerText !== undefined ? el.innerText : el.textContent).trim();
+    commitFieldEdit(blockKey, o => {
+      const block = o.bullets && o.bullets[blockIdx];
+      if(block && block.type === 'list' && Array.isArray(block.items) && itemIdx >= 0 && itemIdx < block.items.length) block.items[itemIdx] = raw;
+    });
+    return;
+  }
+  if(el.dataset.tableCell){
+    const blockKey = el.dataset.key, blockIdx = parseInt(el.dataset.blockIdx,10), rowIdx = parseInt(el.dataset.rowIdx,10), colIdx = parseInt(el.dataset.colIdx,10);
+    const raw = (el.innerText !== undefined ? el.innerText : el.textContent).trim();
+    commitFieldEdit(blockKey, o => {
+      const block = o.bullets && o.bullets[blockIdx];
+      if(block && block.type === 'table' && block.rows && block.rows[rowIdx] && colIdx >= 0 && colIdx < block.rows[rowIdx].length) block.rows[rowIdx][colIdx] = raw;
+    });
+    return;
+  }
+
   const key = el.dataset.key;
   const field = el.dataset.field;
   if(!key || !field) return;
@@ -4939,18 +5478,19 @@ document.addEventListener('focusout', (e) => {
 
   if(field === 'bullet'){
     const idx = parseInt(el.dataset.bulletIndex, 10);
-    if(obj.bullets && obj.bullets[idx] !== raw){
+    const current = obj.bullets && obj.bullets[idx];
+    if(current && current.type === 'text' && current.text !== raw){
       // Bounds-checked against the FRESH server array (read inside the
       // transaction below, not this tab's possibly-stale `obj.bullets`):
       // bullets are matched by array position, no stable id, so if another
       // device deleted an earlier bullet on this same company between this
       // tab's last load and this commit, idx can now land past the end of
-      // the current array. Writing bullets[idx] past the end would silently
-      // corrupt the array (a `null` hole once JSON-stringified) instead of
-      // just failing to find the bullet — skip the write in that case.
+      // the current array, or a different block type. Writing past the end
+      // (or into a non-text block) would silently corrupt data — skip the
+      // write in that case instead.
       commitFieldEdit(key, o => {
-        if(!Array.isArray(o.bullets)) o.bullets = [];
-        if(idx >= 0 && idx < o.bullets.length) o.bullets[idx] = raw;
+        const block = Array.isArray(o.bullets) && o.bullets[idx];
+        if(block && block.type === 'text') block.text = raw;
       });
     }
     return;
@@ -6143,9 +6683,10 @@ function stripLeadingBulletArrows(){
     if(!item || !Array.isArray(item.bullets)) return;
     let changed = false;
     const cleaned = item.bullets.map(b=>{
-      const stripped = b.replace(/^\s*▶\s*/, '');
-      if(stripped !== b) changed = true;
-      return stripped;
+      if(!b || b.type !== 'text' || typeof b.text !== 'string') return b; // only plain text blocks carry a leading ▶ to strip
+      const stripped = b.text.replace(/^\s*▶\s*/, '');
+      if(stripped !== b.text) changed = true;
+      return { ...b, text: stripped };
     });
     if(changed){
       item.bullets = cleaned;
@@ -6470,6 +7011,7 @@ async function init(){
   migrateOnePagerToPptxOnly();
   migrateIaFintech();
   migratePortfolioSection();
+  migrateBulletsToBlocks();
   stripLeadingBulletArrows();
   migrateNewsRegions();
   fixNewsRegionCodes();
