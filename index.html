@@ -921,7 +921,13 @@ async function fetchRawPrefix(prefix){
 
 // Lists keys that live only on the server (e.g. PDF chunks, deliberately excluded
 // from the bulk load) — needed before deleting a presentation's chunks.
-async function fetchRemoteKeys(prefix){
+// `diag`, when passed, gets `.quotaExceeded = true` set on a Firestore
+// resource-exhausted error — every existing caller that omits it keeps the
+// exact same behavior as before (silently swallowed, empty array
+// returned); this only lets an opted-in caller tell "quota, try again
+// later" apart from "genuinely nothing there" without changing what gets
+// returned. Same convention on fetchRawKey() just below.
+async function fetchRemoteKeys(prefix, diag){
   try{
     const coll = collectionForKey(prefix);
     const snap = await fsdb.collection(coll)
@@ -929,15 +935,23 @@ async function fetchRemoteKeys(prefix){
       .where(firebase.firestore.FieldPath.documentId(), '<', prefix + '\uf8ff')
       .get();
     return snap.docs.map(d => d.id);
-  }catch(e){ console.error('remote key list failed', e); return []; }
+  }catch(e){
+    console.error('remote key list failed', e);
+    if(diag && e && e.code === 'resource-exhausted') diag.quotaExceeded = true;
+    return [];
+  }
 }
 
 // Single-key raw (unparsed) fetch — mirrors the old action=get endpoint.
-async function fetchRawKey(key){
+async function fetchRawKey(key, diag){
   try{
     const doc = await fsdb.collection(collectionForKey(key)).doc(key).get();
     return doc.exists ? doc.data().value : null;
-  }catch(e){ console.error('key fetch failed', e); return null; }
+  }catch(e){
+    console.error('key fetch failed', e);
+    if(diag && e && e.code === 'resource-exhausted') diag.quotaExceeded = true;
+    return null;
+  }
 }
 
 // Raw persistence helpers (no undo tracking) — used internally by undo itself,
@@ -3805,9 +3819,9 @@ function renderPresentationsSectionHTML(){
   return html;
 }
 
-async function fetchChunkWithRetry(key, attempts){
+async function fetchChunkWithRetry(key, attempts, diag){
   for(let i=0;i<attempts;i++){
-    const value = await fetchRawKey(key);
+    const value = await fetchRawKey(key, diag);
     if(value !== null && value !== undefined) return value;
     await new Promise(r => setTimeout(r, 300));
   }
@@ -4270,20 +4284,25 @@ async function uploadOnePagerFile(companyKey, file){
 // file" and the weekly merge). `forceRefresh` skips the cache read (used by
 // groupOnePagers' retry pass, in case a stale/corrupted cache entry is why
 // the first attempt failed) — the freshly-fetched bytes still get cached.
-async function fetchOnePagerBytes(onePager, onProgress, forceRefresh){
+// `diag`, when passed as `{}`, gets `.quotaExceeded = true` set if a
+// Firestore resource-exhausted error is what caused a null return — lets a
+// caller show "quota Firestore dépassé, réessaie plus tard" instead of a
+// generic "fichier introuvable" when that's the real reason. Optional and
+// backward-compatible: omitting it behaves exactly as before.
+async function fetchOnePagerBytes(onePager, onProgress, forceRefresh, diag){
   const cacheKey = onePager.id + '@' + onePager.uploadedAt;
   if(!forceRefresh){
     const cached = await getCachedOnePagerBytes(cacheKey);
     if(cached) return cached;
   }
 
-  const chunkKeys = await fetchRemoteKeys(`${PDF_PREFIX_CLIENT}${onePager.id}:`);
+  const chunkKeys = await fetchRemoteKeys(`${PDF_PREFIX_CLIENT}${onePager.id}:`, diag);
   if(!chunkKeys || chunkKeys.length === 0) return null;
   chunkKeys.sort((a,b)=> parseInt(a.split(':').pop(),10) - parseInt(b.split(':').pop(),10));
 
   const parts = [];
   for(let i=0;i<chunkKeys.length;i++){
-    const raw = await fetchChunkWithRetry(chunkKeys[i], 3);
+    const raw = await fetchChunkWithRetry(chunkKeys[i], 3, diag);
     if(raw === null) return null;
     let val = raw;
     try{ val = JSON.parse(raw); }catch(e){ /* was stored as a plain string */ }
@@ -4306,8 +4325,14 @@ async function openOnePager(companyKey){
   const file = company && company.onePagerFile;
   if(!file) return;
   showToast(`Ouverture de "${file.fileName}"...`);
-  const bytes = await fetchOnePagerBytes(file);
-  if(!bytes){ showToast('⚠️ Impossible de récupérer ce fichier — réessaie'); return; }
+  const diag = {};
+  const bytes = await fetchOnePagerBytes(file, null, false, diag);
+  if(!bytes){
+    showToast(diag.quotaExceeded
+      ? '⚠️ Quota de lecture Firestore dépassé pour le moment — réessaie dans quelques minutes'
+      : '⚠️ Impossible de récupérer ce fichier — réessaie');
+    return;
+  }
   const blob = new Blob([bytes], { type: file.mimeType });
   const url = URL.createObjectURL(blob);
   window.open(url, '_blank', 'noopener');
@@ -4550,9 +4575,12 @@ async function mergePptxBundle(items, progress){
     if(progress) progress.update({ step: it.name, current: i, total: items.length });
     let lastErr = null, bytes = null;
     for(let attempt=0; attempt<2 && !bytes; attempt++){
+      const diag = {};
       try{
-        bytes = await fetchOnePagerBytes(it.onePagerFile, null, attempt > 0);
-        if(!bytes) throw new Error('Fichier introuvable sur le serveur (chunks manquants ou non accessibles).');
+        bytes = await fetchOnePagerBytes(it.onePagerFile, null, attempt > 0, diag);
+        if(!bytes) throw new Error(diag.quotaExceeded
+          ? 'Quota de lecture Firestore dépassé pour le moment.'
+          : 'Fichier introuvable sur le serveur (chunks manquants ou non accessibles).');
       }catch(err){ lastErr = err; bytes = null; }
     }
     if(bytes){
@@ -4862,9 +4890,13 @@ async function sendOnePagersEmail(){
     // button used, never re-merged here, so the mailed file is guaranteed
     // byte-for-byte identical to what "Regrouper" produced.
     progress.update({ step: 'Récupération du PPTX regroupé...' });
-    const bytes = await fetchOnePagerBytes({ id: bundle.id, uploadedAt: bundle.generatedAt });
+    const diag = {};
+    const bytes = await fetchOnePagerBytes({ id: bundle.id, uploadedAt: bundle.generatedAt }, null, false, diag);
     if(!bytes){
-      progress.error({ message: 'Impossible de récupérer le PPTX regroupé — réessaie, ou régénère-le via "Regrouper les One-Pagers".', onRetry: sendOnePagersEmail });
+      const message = diag.quotaExceeded
+        ? 'Quota de lecture Firestore dépassé pour le moment — réessaie dans quelques minutes (le PPTX regroupé, lui, est bien enregistré).'
+        : 'Impossible de récupérer le PPTX regroupé — réessaie, ou régénère-le via "Regrouper les One-Pagers".';
+      progress.error({ message, onRetry: sendOnePagersEmail });
       return;
     }
 
@@ -7015,9 +7047,12 @@ async function initPublicOnePagersPage(weekId, token){
   document.getElementById('publicDownloadBtn').onclick = async () => {
     const status = document.getElementById('publicDownloadStatus');
     status.textContent = 'Preparing download...';
-    const bytes = await fetchOnePagerBytes({ id: bundle.id, uploadedAt: bundle.generatedAt });
+    const diag = {};
+    const bytes = await fetchOnePagerBytes({ id: bundle.id, uploadedAt: bundle.generatedAt }, null, false, diag);
     if(!bytes){
-      status.textContent = 'Could not retrieve the file — please try again in a moment.';
+      status.textContent = diag.quotaExceeded
+        ? 'Server is temporarily busy — please try again in a few minutes.'
+        : 'Could not retrieve the file — please try again in a moment.';
       return;
     }
     triggerBrowserDownload(bytes, ONEPAGER_MIME_BY_FORMAT.pptx, onePagerGroupFileName(week));
