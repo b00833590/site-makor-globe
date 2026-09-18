@@ -3495,6 +3495,31 @@ function arrayBufferToBase64(buffer){
   return btoa(binary);
 }
 
+// Wire format api/merge-pptx.py expects for a merge request: a 4-byte
+// big-endian manifest length, the JSON manifest ([{name, length}, ...]),
+// then every file's raw bytes concatenated in the same order — no base64,
+// no per-file JSON wrapping of the content itself. ponytail: base64-in-JSON
+// was adding ~33% dead weight on top of the real file bytes, which is what
+// pushed a perfectly reasonable ~3.5 MB of real PPTX data over Vercel's
+// ~4.5 MB serverless function request-body limit (FUNCTION_PAYLOAD_TOO_LARGE)
+// once a full week's worth of One-Pagers were merged together. This framing
+// removes that overhead, buying real headroom, but the ceiling is still
+// finite — if the total one-pagers for a week ever again approach ~4.5 MB of
+// raw bytes, the fix is to merge incrementally (send one file at a time,
+// have the server persist the growing merged deck between calls) rather
+// than to re-encode more efficiently.
+function buildMergeUploadBody(filesForServer){
+  const manifest = filesForServer.map(f => ({ name: f.name, length: f.bytes.length }));
+  const manifestBytes = new TextEncoder().encode(JSON.stringify(manifest));
+  const totalLength = 4 + manifestBytes.length + filesForServer.reduce((s,f)=>s+f.bytes.length, 0);
+  const out = new Uint8Array(totalLength);
+  new DataView(out.buffer).setUint32(0, manifestBytes.length, false);
+  out.set(manifestBytes, 4);
+  let offset = 4 + manifestBytes.length;
+  filesForServer.forEach(f => { out.set(f.bytes, offset); offset += f.bytes.length; });
+  return out;
+}
+
 function splitIntoChunks(str, size){
   const chunks = [];
   for(let i=0;i<str.length;i+=size) chunks.push(str.slice(i, i+size));
@@ -4067,7 +4092,7 @@ async function mergePptxBundle(items, progress){
     }
     if(bytes){
       const fileName = it.onePagerFile.fileName || (it.name + '.pptx');
-      filesForServer.push({ name: fileName, base64: arrayBufferToBase64(bytes) });
+      filesForServer.push({ name: fileName, bytes: new Uint8Array(bytes) });
       itemByFileName.set(fileName, it);
     } else {
       console.error('One-Pager ignoré (lecture):', it.name, lastErr);
@@ -4082,8 +4107,8 @@ async function mergePptxBundle(items, progress){
   try{
     res = await fetch('/api/merge-pptx', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ files: filesForServer }),
+      headers: { 'Content-Type': 'application/octet-stream' },
+      body: buildMergeUploadBody(filesForServer),
     });
   }catch(e){
     filesForServer.forEach(f => skipped.push({ name: itemByFileName.get(f.name).name, reason: 'Connexion au service de fusion impossible.' }));

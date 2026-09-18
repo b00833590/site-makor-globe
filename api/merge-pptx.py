@@ -41,7 +41,6 @@
 # — Vercel's Python runtime auto-detects any api/*.py file, no extra config
 # beyond api/requirements.txt for the lxml/python-pptx dependencies.
 
-import base64
 import io
 import json
 import re
@@ -380,15 +379,21 @@ class handler(BaseHTTPRequestHandler):
             return
 
         raw = self.rfile.read(content_length)
+        # Wire format (see buildMergeUploadBody() client-side): 4-byte
+        # big-endian manifest length, the JSON manifest ([{name, length}, ...]),
+        # then every file's raw bytes concatenated in that order. Sent as raw
+        # binary rather than base64-in-JSON specifically because base64's ~33%
+        # overhead was what pushed a real week's worth of One-Pagers over
+        # Vercel's request-body limit even though the actual file bytes fit.
         try:
-            payload = json.loads(raw)
-            files = payload.get('files') or []
+            if len(raw) < 4:
+                raise ValueError('payload trop court')
+            manifest_len = int.from_bytes(raw[0:4], 'big')
+            manifest = json.loads(raw[4:4 + manifest_len])
+            if not isinstance(manifest, list) or len(manifest) == 0:
+                raise ValueError('manifeste vide')
         except Exception:
-            self._send_text(400, 'Requête invalide (JSON illisible).')
-            return
-
-        if not isinstance(files, list) or len(files) == 0:
-            self._send_text(400, 'Aucun fichier PPTX fourni.')
+            self._send_text(400, 'Requête invalide (manifeste illisible).')
             return
 
         # Isolated per-file: one corrupt/undecodable file must not block the
@@ -396,13 +401,17 @@ class handler(BaseHTTPRequestHandler):
         # folds into the "not everything merged" report it already shows.
         named_streams = []
         skipped = []  # {name, reason}
-        for f in files:
-            name = f.get('name', 'fichier.pptx') if isinstance(f, dict) else 'fichier.pptx'
+        offset = 4 + manifest_len
+        for entry in manifest:
+            name = entry.get('name', 'fichier.pptx') if isinstance(entry, dict) else 'fichier.pptx'
+            length = entry.get('length', 0) if isinstance(entry, dict) else 0
             try:
-                data = base64.b64decode(f['base64'])
-                named_streams.append((name, io.BytesIO(data)))
+                if not isinstance(length, int) or length < 0 or offset + length > len(raw):
+                    raise ValueError('fichier tronqué')
+                named_streams.append((name, io.BytesIO(raw[offset:offset + length])))
             except Exception as e:
                 skipped.append({'name': name, 'reason': str(e) or 'fichier illisible'})
+            offset += length if isinstance(length, int) and length > 0 else 0
 
         if not named_streams:
             self._send_text(422, 'Aucun des fichiers PPTX fournis n\'a pu être lu.')
@@ -426,7 +435,7 @@ class handler(BaseHTTPRequestHandler):
             self._send_text(502, 'La fusion a produit un fichier PPTX invalide — aucun fichier n\'a été renvoyé. Réessaie ou contacte le support avec les fichiers concernés.')
             return
 
-        expected_included = sum(1 for f in files) - len(skipped)
+        expected_included = len(manifest) - len(skipped)
         self.send_response(200)
         self.send_header('Content-Type', 'application/vnd.openxmlformats-officedocument.presentationml.presentation')
         self.send_header('X-Included-Count', str(expected_included))
