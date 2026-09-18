@@ -431,7 +431,7 @@
   /* Print / PDF export: compact as possible, only the current page's content */
   @page{ margin: 10mm 8mm; }
   @media print{
-    .header, .weeks-bar, .tabs-bar, .add-bar, .del-btn, .group-color-input, #toast, #modalRoot{ display:none !important; }
+    .header, .weeks-bar, .tabs-bar, .add-bar, .del-btn, .group-color-input, #toast, #modalRoot, #progressRoot{ display:none !important; }
     body{ background:#fff; font-size:11px; }
     .container{ padding:0; max-width:100%; }
 
@@ -531,6 +531,35 @@
     box-shadow:0 8px 24px rgba(0,0,0,.2);z-index:200;opacity:0;transition:opacity .25s ease;pointer-events:none;
   }
   .toast.show{opacity:1;}
+
+  /* Shared progress panel — see openProgressPanel(): the one loading UI every
+     long-running action (index refresh, One-Pager merge, email send, PDF
+     export) reports through, so the "site is working, here's what/where" UX
+     stays identical everywhere instead of being reinvented per feature. */
+  #progressRoot{ position:fixed; z-index:250; bottom:20px; right:20px; }
+  .progress-panel{
+    background:#fff;border:1px solid var(--line);border-radius:12px;
+    box-shadow:0 12px 32px rgba(15,23,48,.18);padding:14px 16px;width:300px;max-width:calc(100vw - 32px);
+  }
+  .progress-panel-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px;}
+  .progress-panel-title{font-size:13px;font-weight:700;color:var(--text);}
+  .progress-panel-close{cursor:pointer;color:var(--muted);font-size:13px;line-height:1;}
+  .progress-bar-track{height:6px;border-radius:4px;background:var(--line);overflow:hidden;position:relative;}
+  .progress-bar-fill{height:100%;background:var(--gold);border-radius:4px;width:0%;transition:width .3s ease;}
+  /* Indeterminate = a real unknown, not a faked percentage: a short block
+     sweeps end to end instead of any number ever being shown. */
+  .progress-bar-fill.indeterminate{width:40% !important;position:absolute;top:0;animation:progress-sweep 1.3s ease-in-out infinite;}
+  @keyframes progress-sweep{ 0%{left:-40%;} 100%{left:100%;} }
+  .progress-panel-step{font-size:12px;color:var(--muted);margin-top:8px;line-height:1.4;}
+  .progress-panel.is-success .progress-bar-fill{background:var(--green);}
+  .progress-panel.is-success .progress-panel-step{color:var(--green);font-weight:600;}
+  .progress-panel.is-error{border-color:var(--red);}
+  .progress-panel.is-error .progress-bar-fill{background:var(--red);width:100% !important;position:static;animation:none;}
+  .progress-panel.is-error .progress-panel-step{color:var(--red);}
+  .progress-retry-btn{margin-left:6px;padding:3px 10px;font-size:11px;}
+  @media (prefers-reduced-motion: reduce){
+    .progress-bar-fill.indeterminate{animation:none;left:0;width:100% !important;opacity:.5;}
+  }
   .update-banner{
     position:fixed;top:0;left:0;right:0;z-index:300;background:var(--gold,#c99a3a);color:#1a1a2e;
     text-align:center;padding:9px 12px;font-size:13px;font-weight:600;cursor:pointer;
@@ -576,6 +605,7 @@
 <div id="modalRoot"></div>
 <div class="update-banner" id="updateBanner" title="Cliquer pour recharger">🔄 Nouvelle version du site disponible — clique ici pour recharger la page</div>
 <div class="toast" id="toast"></div>
+<div id="progressRoot"></div>
 <!-- Editor toolbar element, structurally separate from every editable field
      it can act on — see the comment above getColorToolbarBtn() in the
      script below for why this lives here rather than inside any field. -->
@@ -614,6 +644,81 @@ function showToast(msg){
   t.textContent = msg;
   t.classList.add('show');
   setTimeout(()=>t.classList.remove('show'), 2200);
+}
+
+// ---------- Shared progress panel for long-running actions ----------
+// One reusable loading UI for every action that can take several seconds
+// (index refresh, One-Pager merge, email send, PDF export), instead of a
+// bespoke indicator per feature. `seq` guards against a stale finally-block
+// closing a panel a faster, newer action already replaced.
+let progressPanelSeq = 0;
+function openProgressPanel(title){
+  const id = ++progressPanelSeq;
+  const root = document.getElementById('progressRoot');
+  root.innerHTML = `
+    <div class="progress-panel" id="progressPanel">
+      <div class="progress-panel-head">
+        <span class="progress-panel-title">${escapeHtml(title)}</span>
+        <span class="progress-panel-close" id="progressPanelClose" title="Fermer" hidden>✕</span>
+      </div>
+      <div class="progress-bar-track"><div class="progress-bar-fill indeterminate" id="progressPanelFill"></div></div>
+      <div class="progress-panel-step" id="progressPanelStep"></div>
+    </div>`;
+  document.getElementById('progressPanelClose').onclick = () => closeProgressPanel(id);
+
+  return {
+    // Real progress when current/total are known (e.g. "3/6 fichiers") — the
+    // bar reflects actual completed work, never a simulated percentage. Pass
+    // only `step` (no current/total) when progress genuinely isn't
+    // measurable: the bar stays an animated, honestly-unlabeled sweep.
+    update({ step, current, total }){
+      const panel = document.getElementById('progressPanel');
+      if(!panel) return;
+      const fill = document.getElementById('progressPanelFill');
+      const stepEl = document.getElementById('progressPanelStep');
+      if(typeof current === 'number' && typeof total === 'number' && total > 0){
+        const pct = Math.max(0, Math.min(100, Math.round((current/total)*100)));
+        fill.classList.remove('indeterminate');
+        fill.style.width = pct + '%';
+        stepEl.textContent = (step ? step + ' — ' : '') + `${current}/${total} (${pct}%)`;
+      } else {
+        fill.classList.add('indeterminate');
+        fill.style.width = '';
+        stepEl.textContent = step || '';
+      }
+    },
+    success(msg){
+      const panel = document.getElementById('progressPanel');
+      if(!panel) return;
+      panel.classList.add('is-success');
+      const fill = document.getElementById('progressPanelFill');
+      fill.classList.remove('indeterminate');
+      fill.style.width = '100%';
+      document.getElementById('progressPanelStep').textContent = '✓ ' + msg;
+      setTimeout(() => closeProgressPanel(id), 1800);
+    },
+    error({ message, onRetry }){
+      const panel = document.getElementById('progressPanel');
+      if(!panel) return;
+      panel.classList.add('is-error');
+      document.getElementById('progressPanelClose').hidden = false;
+      const stepEl = document.getElementById('progressPanelStep');
+      stepEl.innerHTML = '⚠️ ' + escapeHtml(message);
+      if(onRetry){
+        const retryBtn = document.createElement('button');
+        retryBtn.className = 'btn btn-ghost btn-sm progress-retry-btn';
+        retryBtn.textContent = 'Réessayer';
+        retryBtn.onclick = () => { closeProgressPanel(id); onRetry(); };
+        stepEl.appendChild(retryBtn);
+      }
+    },
+    close(){ closeProgressPanel(id); }
+  };
+}
+function closeProgressPanel(id){
+  if(id !== progressPanelSeq) return; // a newer panel has already taken over #progressRoot
+  const root = document.getElementById('progressRoot');
+  if(root) root.innerHTML = '';
 }
 
 function setMaj(){
@@ -1780,8 +1885,11 @@ function openExportOptionsModal(){
   };
 }
 
+let pdfExportInFlight = false;
 async function generateCombinedReportPDF(sectionIds){
   if(!sectionIds || sectionIds.length === 0){ showToast('Sélectionne au moins une section'); return; }
+  if(pdfExportInFlight){ showToast('Export déjà en cours...'); return; }
+  pdfExportInFlight = true;
   const weekId = state.activeWeek;
   const week = state.weeks.find(w=>w.id===weekId);
 
@@ -1797,7 +1905,7 @@ async function generateCombinedReportPDF(sectionIds){
     html += renderPortfolioSectionHTML();
   }
 
-  if(!html){ showToast('Aucune donnée à exporter pour cette sélection'); return; }
+  if(!html){ showToast('Aucune donnée à exporter pour cette sélection'); pdfExportInFlight = false; return; }
 
   // html2canvas computes a 0px height (blank capture) for any detached element
   // taken out of normal document flow (position:fixed OR absolute, whether
@@ -1821,7 +1929,8 @@ async function generateCombinedReportPDF(sectionIds){
   const safe = s => (s||'').replace(/[^a-zA-Z0-9]+/g,'_').replace(/^_+|_+$/g,'');
   const filename = `Makor_Rapport_${safe(week ? week.label : 'semaine')}.pdf`;
 
-  showToast('Génération du PDF...');
+  const progress = openProgressPanel('Export PDF');
+  progress.update({ step: 'Génération du document...' }); // html2pdf gives no step-level events — honestly indeterminate
   try{
     await html2pdf().set({
       margin: 8,
@@ -1831,15 +1940,16 @@ async function generateCombinedReportPDF(sectionIds){
       jsPDF: { unit:'mm', format:'a4', orientation:'portrait' },
       pagebreak: { mode:['css','legacy'] }
     }).from(report).save();
-    showToast('PDF téléchargé');
+    progress.success('PDF téléchargé');
   }catch(err){
     console.error('PDF export failed', err);
-    showToast('⚠️ Échec de la génération du PDF');
+    progress.error({ message: 'Échec de la génération du PDF', onRetry: () => generateCombinedReportPDF(sectionIds) });
   }finally{
     rebuiltGrids.forEach(({grid, wrapper, items})=>{
       items.forEach(el => { el.style.flex = ''; el.style.minWidth = ''; });
     });
     hiddenWrapper.remove();
+    pdfExportInFlight = false;
   }
 }
 
@@ -1851,9 +1961,11 @@ async function generateCombinedReportPDF(sectionIds){
 // layout/paint cycle and produce a blank capture. Toggling visibility on
 // already-laid-out content sidesteps that entirely.)
 function exportPortfolioRegionAsPDF(regionId){
+  if(pdfExportInFlight){ showToast('Export déjà en cours...'); return; }
   const container = document.getElementById('container');
   const targetRegion = container.querySelector(`.portfolio-region[data-region-id="${CSS.escape(regionId)}"]`);
   if(!targetRegion) return;
+  pdfExportInFlight = true;
 
   const header = document.querySelector('.header');
   const weeksBar = document.getElementById('weeksBar');
@@ -1895,7 +2007,8 @@ function exportPortfolioRegionAsPDF(regionId){
     container.classList.remove('pdf-export');
   };
 
-  showToast('Génération du PDF...');
+  const progress = openProgressPanel('Export PDF');
+  progress.update({ step: 'Génération du document...' }); // html2pdf gives no step-level events — honestly indeterminate
   html2pdf().set({
     margin: 8,
     filename,
@@ -1905,11 +2018,13 @@ function exportPortfolioRegionAsPDF(regionId){
     pagebreak: { mode:['css','legacy'] }
   }).from(container).save().then(()=>{
     restore();
-    showToast('PDF téléchargé');
+    progress.success('PDF téléchargé');
   }).catch((err)=>{
     console.error('PDF export failed', err);
     restore();
-    showToast('⚠️ Échec de la génération du PDF');
+    progress.error({ message: 'Échec de la génération du PDF', onRetry: () => exportPortfolioRegionAsPDF(regionId) });
+  }).finally(()=>{
+    pdfExportInFlight = false;
   });
 }
 
@@ -2179,7 +2294,8 @@ async function refreshMarketQuotes(){
       return;
     }
 
-    showToast(`Actualisation des cours... (0/${withTicker.length})`);
+    const progress = openProgressPanel('Actualisation des indices');
+    progress.update({ step: 'Récupération des données de marché...', current: 0, total: withTicker.length });
     let done = 0;
     const { results, serviceDown, notAttempted } = await runWithBoundedConcurrency(withTicker, MARKET_REFRESH_CONCURRENCY, async (it) => {
       const map = resolveMarketTicker(it);
@@ -2193,7 +2309,7 @@ async function refreshMarketQuotes(){
         setItemLocal(key, obj);
       }
       done++;
-      if(done % 3 === 0) showToast(`Actualisation des cours... (${done}/${withTicker.length})`);
+      progress.update({ step: it.name, current: done, total: withTicker.length });
       return r;
     });
 
@@ -2204,10 +2320,11 @@ async function refreshMarketQuotes(){
     refreshData();
 
     if(serviceDown){
-      showToast(`⚠️ Service de cotation Google indisponible (quota journalier dépassé). ${
+      const msg = `Service de cotation Google indisponible (quota journalier dépassé). ${
         updated.length
           ? updated.length + ' indice(s) actualisé(s) avant la coupure — relance plus tard pour le reste.'
-          : 'Aucun indice modifié — réessaie plus tard.'}`);
+          : 'Aucun indice modifié — réessaie plus tard.'}`;
+      progress.error({ message: msg, onRetry: refreshMarketQuotes });
       console.warn('[refreshMarketQuotes] service KO après', updated.length, 'succès —', notAttempted, 'restants non tentés');
       return;
     }
@@ -2216,7 +2333,11 @@ async function refreshMarketQuotes(){
     if(failed.length) msg += `. Échec : ${failed.map(f=>f.name).join(', ')}`;
     if(withoutTicker.length) msg += `. Sans symbole Yahoo : ${withoutTicker.map(it=>it.name).join(', ')}`;
     if(notes.size) msg += `. (${[...notes].join(' ; ')})`;
-    showToast(msg);
+    if(failed.length){
+      progress.error({ message: msg, onRetry: refreshMarketQuotes });
+    } else {
+      progress.success(msg);
+    }
     if(failed.length || withoutTicker.length){
       console.warn('[refreshMarketQuotes] non actualisés', { failed, sansSymbole: withoutTicker.map(it=>it.name) });
     }
@@ -3900,7 +4021,7 @@ function triggerBrowserDownload(bytes, mimeType, filename){
 // rest — this, plus the count check in groupOnePagers, is what guarantees
 // "N available -> N in the final file": nothing here silently drops a file
 // without it ending up counted in `skipped`.
-async function mergePptxBundle(items){
+async function mergePptxBundle(items, progress){
   const includedItems = [];
   const skipped = [];
   if(items.length === 0) return { bytes:null, includedItems, skipped };
@@ -3909,7 +4030,7 @@ async function mergePptxBundle(items){
   const itemByFileName = new Map();
   for(let i=0;i<items.length;i++){
     const it = items[i];
-    showToast(`Préparation des One-Pagers... (${i+1}/${items.length}) — ${it.name}`);
+    if(progress) progress.update({ step: it.name, current: i, total: items.length });
     let lastErr = null, bytes = null;
     for(let attempt=0; attempt<2 && !bytes; attempt++){
       try{
@@ -3929,7 +4050,7 @@ async function mergePptxBundle(items){
 
   if(filesForServer.length === 0) return { bytes:null, includedItems, skipped };
 
-  showToast('Fusion des One-Pagers en cours...');
+  if(progress) progress.update({ step: 'Fusion du PPTX en cours...' }); // server-side, not measurable — stays indeterminate
   let res;
   try{
     res = await fetch('/api/merge-pptx', {
@@ -3979,7 +4100,9 @@ async function mergePptxBundle(items){
   return { bytes, includedItems, skipped };
 }
 
+let groupOnePagersInFlight = false;
 async function groupOnePagers(){
+  if(groupOnePagersInFlight) return;
   const week = state.weeks.find(w=>w.id===state.activeWeek);
   const companies = sortCompaniesForDisplay(state.contentItems.filter(it=>it.name));
   const withPptx = companies.filter(it => it.onePagerFile);
@@ -3989,36 +4112,50 @@ async function groupOnePagers(){
     return;
   }
 
-  const result = await mergePptxBundle(withPptx);
-  const included = result.includedItems.length;
+  groupOnePagersInFlight = true;
+  const btn = document.getElementById('groupOnePagersBtn');
+  if(btn){ btn.disabled = true; }
+  const progress = openProgressPanel('Regroupement des One-Pagers');
+  progress.update({ step: 'Préparation...', current: 0, total: withPptx.length });
 
-  // The explicit guarantee PHASE 7 asks for: what was available must equal
-  // what made it into the final file, or the gap is named, not silently
-  // swallowed — this assertion can only ever fire if mergePptxBundle has a
-  // bookkeeping bug (every included/skipped file is accounted for above),
-  // so it's a last-resort safety net, not the primary correctness mechanism.
-  if(included + result.skipped.length !== withPptx.length){
-    console.error('One-Pager count mismatch', { available: withPptx.length, included, skipped: result.skipped.length });
-  }
+  try{
+    const result = await mergePptxBundle(withPptx, progress);
+    const included = result.includedItems.length;
 
-  if(included === 0){
-    showOnePagerMergeResultModal({ included: 0, total: withPptx.length, skipped: result.skipped });
-    return;
-  }
+    // The explicit guarantee PHASE 7 asks for: what was available must equal
+    // what made it into the final file, or the gap is named, not silently
+    // swallowed — this assertion can only ever fire if mergePptxBundle has a
+    // bookkeeping bug (every included/skipped file is accounted for above),
+    // so it's a last-resort safety net, not the primary correctness mechanism.
+    if(included + result.skipped.length !== withPptx.length){
+      console.error('One-Pager count mismatch', { available: withPptx.length, included, skipped: result.skipped.length });
+    }
 
-  triggerBrowserDownload(result.bytes, ONEPAGER_MIME_BY_FORMAT.pptx, onePagerGroupFileName(week));
-  const bundleSaved = await saveOnePagerBundle(week, result.bytes, result.includedItems);
+    if(included === 0){
+      progress.close();
+      showOnePagerMergeResultModal({ included: 0, total: withPptx.length, skipped: result.skipped });
+      return;
+    }
 
-  const summary = `${included} One-Pager${included>1?'s':''} regroupé${included>1?'s':''} sur ${withPptx.length} disponible${withPptx.length>1?'s':''}.`;
-  if(result.skipped.length){
-    // A vanishing toast is exactly how a partial file slips by unnoticed —
-    // needs a report the person has to actively dismiss, naming which
-    // company and why, not a 2-second notification.
-    showOnePagerMergeResultModal({ included, total: withPptx.length, skipped: result.skipped });
-  } else if(!bundleSaved){
-    showToast(`${summary} ⚠️ Téléchargé, mais la sauvegarde en ligne (pour le lien à envoyer) a échoué — réessaie.`);
-  } else {
-    showToast(summary);
+    triggerBrowserDownload(result.bytes, ONEPAGER_MIME_BY_FORMAT.pptx, onePagerGroupFileName(week));
+    const bundleSaved = await saveOnePagerBundle(week, result.bytes, result.includedItems);
+
+    const summary = `${included} One-Pager${included>1?'s':''} regroupé${included>1?'s':''} sur ${withPptx.length} disponible${withPptx.length>1?'s':''}.`;
+    if(result.skipped.length){
+      // A vanishing toast is exactly how a partial file slips by unnoticed —
+      // needs a report the person has to actively dismiss, naming which
+      // company and why, not a 2-second notification.
+      progress.close();
+      showOnePagerMergeResultModal({ included, total: withPptx.length, skipped: result.skipped });
+    } else if(!bundleSaved){
+      progress.error({ message: `${summary} Téléchargé, mais la sauvegarde en ligne (pour le lien à envoyer) a échoué.`, onRetry: groupOnePagers });
+    } else {
+      progress.success(summary);
+    }
+  } finally {
+    groupOnePagersInFlight = false;
+    const liveBtn = document.getElementById('groupOnePagersBtn');
+    if(liveBtn) liveBtn.disabled = false;
   }
 }
 
@@ -4196,7 +4333,8 @@ async function sendOnePagersEmail(){
   onePagersEmailInFlight = true;
   const btn = document.getElementById('sendOnePagersEmailBtn');
   if(btn){ btn.disabled = true; btn.textContent = '⏳ Envoi en cours...'; }
-  showToast('Envoi de l\'email en cours...');
+  const progress = openProgressPanel('Envoi aux maîtres de stage');
+  progress.update({ step: 'Envoi vers le service d\'email...' }); // single network call — not measurable, stays indeterminate
 
   try{
     const res = await fetch('/api/send-onepagers-email', {
@@ -4225,9 +4363,11 @@ async function sendOnePagersEmail(){
       }
     });
     refreshData();
+    progress.close();
     showEmailSendResultModal({ ok:true, messageId: result.messageId, recipientCount: result.recipientCount });
   }catch(e){
     console.error('sendOnePagersEmail failed', e);
+    progress.close();
     showEmailSendResultModal({ ok:false, error: e.message });
   }finally{
     onePagersEmailInFlight = false;
