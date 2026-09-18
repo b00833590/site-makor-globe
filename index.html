@@ -815,13 +815,34 @@ function readDbCache(){
     return data;
   }catch(e){ return null; }
 }
+// Marks `data` as a confirmed-fresh snapshot straight from Firestore and
+// resets the TTL clock. Call ONLY right after a genuine full server load
+// (loadAllFromServer) — never after a single local edit.
 function writeDbCache(data){
   try{ localStorage.setItem(DB_CACHE_KEY, JSON.stringify({ at: Date.now(), data })); }catch(e){ /* storage full/blocked — best effort */ }
+}
+// Persists the in-memory DB so a same-tab reload doesn't lose it, WITHOUT
+// touching the freshness clock. A local edit (commitFieldEdit/rawSet/...)
+// only ever confirms the ONE document it wrote against the server — it says
+// nothing about the hundreds of other cached documents, which could still be
+// edited by someone else at any moment. Before this split, scheduleCacheSync()
+// called writeDbCache() directly, so routine editing kept renewing the
+// 10-minute TTL forever: an intern who edits their own entreprise regularly
+// could go days without the app ever re-fetching everyone else's changes —
+// this is what let one intern's One-Pager and another's Market Cap edit stay
+// invisible to a third intern whose browser never actually re-synced, while
+// anyone loading with an empty/expired cache saw the real data immediately.
+function persistDbSnapshot(data){
+  try{
+    const raw = localStorage.getItem(DB_CACHE_KEY);
+    const existingAt = raw ? JSON.parse(raw).at : null;
+    localStorage.setItem(DB_CACHE_KEY, JSON.stringify({ at: existingAt || Date.now(), data }));
+  }catch(e){ /* storage full/blocked — best effort */ }
 }
 let cacheSyncTimer = null;
 function scheduleCacheSync(){
   clearTimeout(cacheSyncTimer);
-  cacheSyncTimer = setTimeout(()=>writeDbCache(DB), 1000);
+  cacheSyncTimer = setTimeout(()=>persistDbSnapshot(DB), 1000);
 }
 
 async function loadAllFromServerOnce(){
