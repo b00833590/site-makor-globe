@@ -3,7 +3,7 @@
 // side panel on entry (onEnter) since the whole point of this mode is to
 // show the panel's content large and clear, not just declutter the globe.
 // No persistence, same as the panel toggle — off by default every session.
-export function initPresentationMode({ toggleBtn, bodyEl, onEnter }) {
+export function initPresentationMode({ toggleBtn, bodyEl, onEnter, onExit }) {
   let isActive = false;
 
   function apply() {
@@ -21,8 +21,10 @@ export function initPresentationMode({ toggleBtn, bodyEl, onEnter }) {
   }
 
   function exit() {
+    if (!isActive) return;
     isActive = false;
     apply();
+    if (onExit) onExit();
   }
 
   function toggle() {

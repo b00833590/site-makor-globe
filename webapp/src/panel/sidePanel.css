@@ -327,32 +327,10 @@ body.presentation-mode {
   --panel-width: 760px;
 }
 
-body.presentation-mode .panel-region-label {
-  font-size: 20px;
-}
-
-body.presentation-mode .panel-section-label {
-  font-size: 14px;
-  padding: 5px 12px;
-}
-
-body.presentation-mode .panel-index-row {
-  font-size: 17px;
-  padding: 12px 14px;
-}
-
-body.presentation-mode .panel-news-block h3 {
-  font-size: 19px;
-}
-
-body.presentation-mode .panel-news-block p {
-  font-size: 16px;
-}
-
-body.presentation-mode .panel-iafintech-card {
-  font-size: 16px;
-}
-
-body.presentation-mode .panel-iafintech-card h3 {
-  font-size: 18px;
-}
+/* The old fixed font-size bumps that used to apply automatically here (and
+   in companyList.css/portfolioTable.css/chartModal.css) are gone — that
+   jump was itself the "automatic zoom" removed per product request. The
+   panel now stays at its normal size by default, and presentationZoom.js
+   applies a user-controlled CSS `zoom` directly on .side-panel (and on
+   .chart-modal-content) instead, so every descendant scales together
+   without needing a per-component override. */

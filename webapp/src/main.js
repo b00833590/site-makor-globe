@@ -30,6 +30,7 @@ import { fridayOfCurrentWeekDDMM } from './data/dateUtils.js';
 import { initSidePanel } from './panel/sidePanel.js';
 import { initPanelToggle } from './panel/panelToggle.js';
 import { initPresentationMode } from './panel/presentationMode.js';
+import { initPresentationZoom } from './panel/presentationZoom.js';
 import { initPanelResize } from './panel/panelResize.js';
 import { initBrightnessMode } from './panel/brightnessMode.js';
 import { initPresentationsModal } from './panel/presentationsModal.js';
@@ -224,11 +225,16 @@ function handleCompanyColorChange(item, field, color) {
 }
 
 function handleCompanyBulletAdd(item) {
-  handleCompanyEdit(item, { bullets: [...(item.bullets || []), 'Nouveau point clé à compléter'] });
+  handleCompanyEdit(item, { bullets: [...(item.bullets || []), { type: 'text', text: 'Nouveau point clé à compléter' }] });
 }
 
-function handleCompanyBulletEdit(item, index, text) {
-  handleCompanyEdit(item, { bullets: (item.bullets || []).map((bullet, i) => (i === index ? text : bullet)) });
+// `block` is a full { type, text } object (see companyList.js) rather than
+// a bare string — this panel only ever edits 'text' blocks (list/table/
+// image/chart are edited in Morning News), but the array itself holds
+// whatever block shape Morning News last wrote at other indices, and this
+// must not collapse those back down to a string.
+function handleCompanyBulletEdit(item, index, block) {
+  handleCompanyEdit(item, { bullets: (item.bullets || []).map((bullet, i) => (i === index ? block : bullet)) });
 }
 
 function reindexBulletColors(colors, deletedIndex) {
@@ -649,10 +655,18 @@ const panelToggleHandle = initPanelToggle({
   bodyEl: document.body,
 });
 
+const presentationZoomHandle = initPresentationZoom({
+  outBtn: document.getElementById('presentation-zoom-out-btn'),
+  inBtn: document.getElementById('presentation-zoom-in-btn'),
+  valueEl: document.getElementById('presentation-zoom-value'),
+  targets: [document.querySelector('.side-panel'), document.querySelector('.chart-modal-content')],
+});
+
 initPresentationMode({
   toggleBtn: document.getElementById('presentation-mode-btn'),
   bodyEl: document.body,
   onEnter: () => panelToggleHandle.open(),
+  onExit: () => presentationZoomHandle.reset(),
 });
 
 initPanelResize({

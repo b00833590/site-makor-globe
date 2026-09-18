@@ -5,6 +5,22 @@ import {
 } from './pdfExport.js';
 import { safeText } from './pdfTextSanitize.js';
 import { isFlagSequence, flagImageUrl } from '../admin/flagImage.js';
+import { normalizeBulletBlock } from './bulletBlocks.js';
+
+// This report draws text directly with jsPDF (no HTML/canvas step), so a
+// rich block can only become a plain string here — tables/lists collapse to
+// readable text, and images/charts (genuinely un-renderable in this simple
+// text-drawing path) become a named placeholder rather than "[object
+// Object]" or a crash. Full block rendering (image/chart included) is only
+// in Morning News's own HTML-based PDF export.
+function blockToPdfText(rawBullet) {
+  const block = normalizeBulletBlock(rawBullet);
+  if (block.type === 'list') return (block.items || []).map(i => `- ${i}`).join('\n');
+  if (block.type === 'table') return (block.rows || []).map(r => r.join(' | ')).join('\n');
+  if (block.type === 'image') return '[Image — voir la fiche entreprise]';
+  if (block.type === 'chart') return '[Graphique — voir la fiche entreprise]';
+  return (block.text || '').replace(/\*\*(.+?)\*\*/g, '$1').replace(/\*([^*]+?)\*/g, '$1');
+}
 
 const PAGE_HEIGHT_MM = 297;
 const USABLE_WIDTH_MM = A4_WIDTH_MM - MARGIN_SIDE_MM * 2;
@@ -282,7 +298,7 @@ function drawCompanies(pdf, companyItems, y, flagImages) {
       pdf.setFontSize(9);
       pdf.setTextColor(...BODY);
       for (const bullet of item.bullets) {
-        const lines = pdf.splitTextToSize(safeText(bullet), USABLE_WIDTH_MM - 5);
+        const lines = pdf.splitTextToSize(safeText(blockToPdfText(bullet)), USABLE_WIDTH_MM - 5);
         lines.forEach((line, li) => {
           y = ensureSpace(pdf, y, 4.5);
           pdf.text((li === 0 ? '•  ' : '   ') + line, MARGIN_SIDE_MM, y);

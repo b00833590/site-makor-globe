@@ -1,6 +1,7 @@
 import { buildEditableInput } from '../admin/editableInput.js';
 import { buildColorDot } from '../admin/colorPicker.js';
 import { buildFlagImageEl, appendJoinedParts } from '../admin/flagImage.js';
+import { normalizeBulletBlock, buildBulletBlockContentEl } from './bulletBlocks.js';
 
 const STAT_FIELDS = [
   ['salesGrowthLabel', 'salesGrowth', 'Croissance CA'],
@@ -52,16 +53,20 @@ function buildBulletsList(item, isEditing, { onBulletAdd, onBulletEdit, onBullet
   const bullets = document.createElement('ul');
   bullets.className = 'panel-company-bullets';
 
-  (item.bullets || []).forEach((bullet, index) => {
+  (item.bullets || []).forEach((rawBullet, index) => {
+    const block = normalizeBulletBlock(rawBullet);
     const li = document.createElement('li');
     const field = `bullet-${index}`;
     const bulletColor = item.colors && item.colors[field];
     if (bulletColor) li.style.color = bulletColor;
-    if (isEditing) {
+    // Rich blocks (list/table/image/chart) are edited in Morning News, not
+    // here — this panel only offers plain-text editing (matching what it
+    // always offered) plus delete, which works for any block type.
+    if (isEditing && block.type === 'text') {
       const textarea = document.createElement('textarea');
       textarea.className = 'panel-company-bullet-input';
-      textarea.value = bullet;
-      textarea.addEventListener('change', () => onBulletEdit(item, index, textarea.value));
+      textarea.value = block.text || '';
+      textarea.addEventListener('change', () => onBulletEdit(item, index, { type: 'text', text: textarea.value }));
 
       const delBtn = document.createElement('button');
       delBtn.type = 'button';
@@ -72,13 +77,23 @@ function buildBulletsList(item, isEditing, { onBulletAdd, onBulletEdit, onBullet
 
       li.append(textarea, buildColorDot(bulletColor, color => onColorChange(item, field, color)), delBtn);
     } else {
-      const arrow = document.createElement('span');
-      arrow.className = 'panel-bullet-arrow';
-      arrow.textContent = '▶';
-      const text = document.createElement('span');
-      text.className = 'panel-bullet-text';
-      text.textContent = bullet;
-      li.append(arrow, text);
+      if (block.type === 'text' || !block.type) {
+        const arrow = document.createElement('span');
+        arrow.className = 'panel-bullet-arrow';
+        arrow.textContent = '▶';
+        li.appendChild(arrow);
+      }
+      const contentEl = buildBulletBlockContentEl(block);
+      if (contentEl) li.appendChild(contentEl);
+      if (isEditing) {
+        const delBtn = document.createElement('button');
+        delBtn.type = 'button';
+        delBtn.className = 'panel-company-bullet-delete';
+        delBtn.setAttribute('aria-label', `Supprimer le point clé ${index + 1}`);
+        delBtn.textContent = '✕';
+        delBtn.addEventListener('click', () => onBulletDelete(item, index));
+        li.appendChild(delBtn);
+      }
     }
     bullets.appendChild(li);
   });

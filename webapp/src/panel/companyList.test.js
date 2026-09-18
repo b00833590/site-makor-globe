@@ -260,7 +260,7 @@ describe('editable company bullets', () => {
     const textarea = container.querySelectorAll('.panel-company-bullet-input')[1];
     textarea.value = 'Forte croissance Jio 5G';
     textarea.dispatchEvent(new Event('change'));
-    expect(onBulletEdit).toHaveBeenCalledWith(COMPANY, 1, 'Forte croissance Jio 5G');
+    expect(onBulletEdit).toHaveBeenCalledWith(COMPANY, 1, { type: 'text', text: 'Forte croissance Jio 5G' });
   });
 
   it('calls onBulletDelete with the item and index when a bullet delete button is clicked', () => {
@@ -284,6 +284,26 @@ describe('editable company bullets', () => {
     renderCompanies(container, [{ ...COMPANY, bullets: [] }], [], EDIT_OPTS);
     expect(container.querySelectorAll('.panel-company-bullet-input')).toHaveLength(0);
     expect(container.querySelector('.panel-company-bullet-add')).not.toBeNull();
+  });
+
+  it('renders a rich block (list) read-only even in edit mode, with a delete button but no textarea for it', () => {
+    const withList = { ...COMPANY, bullets: [...COMPANY.bullets, { type: 'list', items: ['Point A', 'Point B'] }] };
+    const container = document.createElement('div');
+    renderCompanies(container, [withList], [], EDIT_OPTS);
+    // Still only 2 textareas (the 2 original text bullets) — the list block gets no textarea.
+    expect(container.querySelectorAll('.panel-company-bullet-input')).toHaveLength(2);
+    const list = container.querySelector('.panel-bullet-list-block');
+    expect(list).not.toBeNull();
+    expect(list.querySelectorAll('li')).toHaveLength(2);
+    // 3 delete buttons total: one per bullet, including the list block.
+    expect(container.querySelectorAll('.panel-company-bullet-delete')).toHaveLength(3);
+  });
+
+  it('normalizes a legacy plain-string bullet instead of showing "[object Object]"', () => {
+    const container = document.createElement('div');
+    renderCompanies(container, [{ ...COMPANY, bullets: ['Plain legacy string'] }], [], { onToggle: () => {}, onOpenChart: () => {} });
+    expect(container.querySelector('.panel-bullet-text').textContent).toBe('Plain legacy string');
+    expect(container.textContent).not.toContain('[object Object]');
   });
 });
 

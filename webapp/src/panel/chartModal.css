@@ -101,23 +101,10 @@
 }
 
 /* ---------- Mode Présentation : grand écran ---------- */
+/* Layout (not scale) bump: more room for the modal itself. The old
+   font-size bumps that used to live here are gone — see the note in
+   sidePanel.css. presentationZoom.js applies the same user-controlled CSS
+   `zoom` here as on .side-panel, so text/padding scale together. */
 body.presentation-mode .chart-modal-content {
   max-width: 900px;
-  padding: 40px;
-}
-
-body.presentation-mode .chart-modal-header span {
-  font-size: 28px;
-}
-
-body.presentation-mode .chart-modal-sub {
-  font-size: 15px;
-}
-
-body.presentation-mode .chart-price {
-  font-size: 32px;
-}
-
-body.presentation-mode .chart-price-change {
-  font-size: 20px;
 }

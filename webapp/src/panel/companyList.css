@@ -255,35 +255,54 @@
   color: inherit;
 }
 
-/* ---------- Mode Présentation : grand écran ---------- */
-body.presentation-mode .panel-company-card {
-  padding: 24px;
-  font-size: 16px;
-}
-
-body.presentation-mode .panel-company-name {
-  font-size: 22px;
-}
-
-body.presentation-mode .panel-company-sub,
-body.presentation-mode .panel-company-cap {
-  font-size: 15px;
-}
-
-body.presentation-mode .panel-company-stat-label {
+/* Rich Points-clé blocks (read-only here — edited in Morning News). */
+.panel-bullet-list-block {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  padding-left: 16px;
   font-size: 13px;
+  line-height: 1.7;
+  color: var(--text);
 }
 
-body.presentation-mode .panel-company-stat-value {
-  font-size: 20px;
-  padding: 4px 12px;
+.panel-bullet-table-block {
+  flex: 1;
+  min-width: 0;
+  border-collapse: collapse;
+  font-size: 12px;
 }
 
-body.presentation-mode .panel-bullet-text {
-  font-size: 17px;
-  line-height: 1.8;
+.panel-bullet-table-block th,
+.panel-bullet-table-block td {
+  border: 1px solid var(--border);
+  padding: 4px 8px;
+  text-align: left;
+  color: var(--text);
 }
 
-body.presentation-mode .panel-bullet-arrow {
-  font-size: 15px;
+.panel-bullet-table-block th {
+  background: var(--surface-alt);
+  font-weight: 700;
 }
+
+.panel-bullet-image-wrap {
+  flex: 1;
+  min-width: 0;
+}
+
+.panel-bullet-image-block {
+  max-width: 100%;
+  border-radius: 6px;
+  display: block;
+}
+
+.panel-bullet-chart-wrap {
+  flex: 1;
+  min-width: 0;
+}
+
+/* ---------- Mode Présentation : grand écran ---------- */
+/* The fixed font-size/padding bumps that used to live here are gone — see
+   the note in sidePanel.css. presentationZoom.js's CSS `zoom` on
+   .side-panel now scales this card (padding included) proportionally. */

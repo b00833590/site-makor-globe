@@ -35,8 +35,60 @@
 body.presentation-mode .top-banner-search,
 body.presentation-mode .edit-toggle-btn,
 body.presentation-mode .export-pdf-btn,
-body.presentation-mode .undo-all-btn {
+body.presentation-mode .undo-all-btn,
+body.presentation-mode .brightness-mode-btn,
+body.presentation-mode #week-timeline,
+body.presentation-mode .lexique-trigger-btn,
+body.presentation-mode .presentations-trigger-btn {
   display: none !important;
+}
+
+/* Manual zoom control for the presentation content (side panel + chart
+   modal) — hidden outside presentation-mode, since it has nothing to act
+   on otherwise. Stacked below .presentation-mode-btn, same family. */
+.presentation-zoom-control {
+  display: none;
+  position: fixed;
+  top: 110px;
+  left: 16px;
+  z-index: 15;
+  align-items: center;
+  gap: 6px;
+  background: var(--surface-button);
+  border: 1px solid rgba(179, 165, 224, 0.4);
+  border-radius: 6px;
+  padding: 4px 6px;
+}
+
+body.presentation-mode .presentation-zoom-control {
+  display: flex;
+}
+
+.presentation-zoom-btn {
+  background: transparent;
+  border: none;
+  color: var(--gold-light, #b3a5e0);
+  cursor: pointer;
+  font-size: 15px;
+  line-height: 1;
+  padding: 4px 8px;
+  border-radius: 4px;
+}
+
+.presentation-zoom-btn:hover:not(:disabled) {
+  background: rgba(138, 124, 192, 0.25);
+}
+
+.presentation-zoom-btn:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.presentation-zoom-value {
+  color: var(--gold-light, #b3a5e0);
+  font-size: 12px;
+  min-width: 34px;
+  text-align: center;
 }
 
 /* Indicateur de région agrandi et plus lisible à distance. */
