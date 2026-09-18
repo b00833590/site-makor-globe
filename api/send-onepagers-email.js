@@ -1,6 +1,7 @@
-// Sends the "latest ideas" email to the maîtres de stage via Brevo's REST
-// API, called directly with fetch (no npm dependency, same zero-dependency
-// approach as convert-pptx.js — there is no package.json in this repo).
+// Sends the "here are this week's One-Pagers" email to the maîtres de
+// stage via Brevo's REST API, called directly with fetch (no npm
+// dependency, same zero-dependency approach as merge-pptx.py — there is no
+// package.json in this repo).
 //
 // Brevo (not Resend) on purpose: Resend requires a verified SENDING DOMAIN
 // to deliver to arbitrary recipients, which needs DNS access this project
@@ -9,47 +10,44 @@
 // a one-click link, no domain or DNS access required. See BREVO_SENDER_EMAIL
 // below.
 //
-// Recipients are never hardcoded: they live in the ONEPAGER_MENTOR_EMAILS
-// env var (comma-separated), so they can be changed from the Vercel
-// dashboard without touching any code, in one place, not scattered across
-// the codebase.
+// The merged PPTX is attached directly (Brevo's transactional email API
+// accepts a base64 `attachment: [{name, content}]`, up to 20MB total
+// including the rest of the email — .pptx is an explicitly supported
+// extension). This replaced an earlier version that emailed a link to a
+// consultation page instead of the file itself — recipients now get the
+// file straight in their inbox, no intermediate page.
 //
-// The client sends only the data needed to build the email (date label,
-// company names, the public consultation-page link) — never the PDF itself,
-// which is fetched from Firestore straight into the client's own PDF
-// merge/download flow and is intentionally NOT attached to this email (the
-// email links to it instead — see the public-page comment in index.html).
+// Wire format the CLIENT sends (see buildEmailAttachmentUploadBody() in
+// index.html): a 4-byte big-endian manifest length, the JSON manifest
+// ({dateLabel, fileName, length}), then the PPTX's raw bytes — binary, not
+// base64-in-JSON, because a merged bundle can be several MB and base64
+// would risk the exact FUNCTION_PAYLOAD_TOO_LARGE failure already hit (and
+// fixed) on the merge-pptx endpoint itself. This function base64-encodes
+// the bytes ONLY for the outbound call to Brevo, whose attachment field
+// requires it — that outbound request isn't subject to Vercel's inbound
+// function payload limit.
 //
 // --- What "success" actually means here ---
 // A 2xx from Brevo's /v3/smtp/email means the API ACCEPTED the request for
-// processing — it is not proof of delivery, and earlier versions of this
-// function treated it as if it were: they discarded Brevo's response body
-// entirely (no messageId captured, nothing logged beyond the HTTP status)
-// and the client showed "Email envoyé avec succès" off nothing more than
-// "the HTTP call didn't error". That's how a request that Brevo silently
-// never delivered (wrong/unverified sender, spam filtering, an account
-// under review) could look identical, from this app's point of view, to a
-// mail that actually reached an inbox. This version captures and returns
-// the real messageId Brevo assigns, so it can be looked up in Brevo's own
-// dashboard (Transactional > Email Activity) for the actual delivery
-// status (sent/delivered/bounced/blocked) — something only Brevo's own
-// systems can confirm, no API response at send-time can promise it.
+// processing — it is not proof of delivery. This version captures and
+// returns the real messageId Brevo assigns, so it can be looked up in
+// Brevo's own dashboard (Transactional > Email Activity) for the actual
+// delivery status (sent/delivered/bounced/blocked) — something only
+// Brevo's own systems can confirm, no API response at send-time can
+// promise it.
 
-async function readJsonBody(req) {
+const MAX_ATTACHMENT_BYTES = 14 * 1024 * 1024; // base64 (~+33%) must stay under Brevo's 20MB total-email cap, with headroom for the rest of the email
+
+async function readRawBody(req) {
   const chunks = [];
   for await (const chunk of req) chunks.push(chunk);
-  const raw = Buffer.concat(chunks).toString('utf8');
-  return raw ? JSON.parse(raw) : {};
+  return Buffer.concat(chunks);
 }
 
 function escapeHtml(s) {
   return String(s || '').replace(/[&<>"']/g, (m) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
 }
 
-// Never logs the key/token itself — only whether it's present, and (for the
-// sender/recipients, which aren't secrets) the actual values, so the Vercel
-// runtime logs are enough to answer "was this request even shaped right?"
-// without needing to reproduce locally.
 function logStep(step, details) {
   console.log(`[send-onepagers-email] step ${step}`, details || '');
 }
@@ -90,45 +88,61 @@ module.exports = async function handler(req, res) {
 
   logStep(2, { senderEmail, recipients, recipientCount: recipients.length });
 
-  let body;
+  let raw;
   try {
-    body = await readJsonBody(req);
+    raw = await readRawBody(req);
   } catch (e) {
-    res.status(400).send('Requête invalide (JSON illisible).');
+    res.status(400).send('Requête invalide (corps illisible).');
     return;
   }
 
-  const dateLabel = typeof body.dateLabel === 'string' ? body.dateLabel.trim() : '';
-  const companyNames = Array.isArray(body.companyNames) ? body.companyNames.filter((n) => typeof n === 'string' && n.trim()) : [];
-  const publicUrl = typeof body.publicUrl === 'string' ? body.publicUrl.trim() : '';
-
-  if (!dateLabel || companyNames.length === 0 || !publicUrl) {
-    res.status(400).send('Requête invalide — date, liste des entreprises et lien sont tous requis.');
+  let dateLabel = '';
+  let fileName = '';
+  let fileBytes = null;
+  try {
+    if (raw.length < 4) throw new Error('payload trop court');
+    const manifestLen = raw.readUInt32BE(0);
+    const manifest = JSON.parse(raw.slice(4, 4 + manifestLen).toString('utf8'));
+    dateLabel = typeof manifest.dateLabel === 'string' ? manifest.dateLabel.trim() : '';
+    fileName = typeof manifest.fileName === 'string' ? manifest.fileName.trim() : '';
+    const length = typeof manifest.length === 'number' ? manifest.length : -1;
+    const offset = 4 + manifestLen;
+    if (length < 0 || offset + length > raw.length) throw new Error('fichier tronqué');
+    fileBytes = raw.slice(offset, offset + length);
+  } catch (e) {
+    res.status(400).send('Requête invalide (manifeste illisible).');
     return;
   }
 
-  const subject = `Makor Morning News | Latest Investment Ideas | ${dateLabel}`;
-  const companiesTextList = companyNames.map((n) => `- ${n}`).join('\n');
-  const companiesHtmlList = companyNames.map((n) => `<li>${escapeHtml(n)}</li>`).join('');
+  if (!dateLabel || !fileName || !fileBytes || fileBytes.length === 0) {
+    res.status(400).send('Requête invalide — date, nom de fichier et PPTX sont tous requis.');
+    return;
+  }
 
-  const text = `Here are the latest ideas from the presentation on ${dateLabel}.
+  const attachmentBase64 = fileBytes.toString('base64');
+  if (attachmentBase64.length > MAX_ATTACHMENT_BYTES) {
+    console.error('[send-onepagers-email] attachment too large', { rawBytes: fileBytes.length, base64Bytes: attachmentBase64.length });
+    res.status(413).json({
+      ok: false,
+      error: `Le PPTX regroupé (${(fileBytes.length / 1024 / 1024).toFixed(1)} Mo) est trop volumineux pour être envoyé en pièce jointe par email (limite Brevo : 20 Mo pour l'email complet). Réduis le nombre ou la taille des One-Pagers, ou contacte les maîtres de stage par un autre moyen pour ce fichier.`,
+    });
+    return;
+  }
 
-Companies presented:
-${companiesTextList}
+  const subject = `One-Pagers - Présentation du ${dateLabel}`;
 
-Follow this link to access and download the One-Pagers:
-${publicUrl}
+  const text = `Bonjour,
 
-Best regards,
+Voici les One-Pagers correspondant aux entreprises présentées lors de la présentation du ${dateLabel}.
+
+Bonne journée,
 Makor Morning News`;
 
-  const html = `<p>Here are the latest ideas from the presentation on ${escapeHtml(dateLabel)}.</p>
-<p><strong>Companies presented:</strong></p>
-<ul>${companiesHtmlList}</ul>
-<p>Follow this link to access and download the One-Pagers:<br><a href="${escapeHtml(publicUrl)}">View the One-Pagers</a></p>
-<p>Best regards,<br>Makor Morning News</p>`;
+  const html = `<p>Bonjour,</p>
+<p>Voici les One-Pagers correspondant aux entreprises présentées lors de la présentation du ${escapeHtml(dateLabel)}.</p>
+<p>Bonne journée,<br>Makor Morning News</p>`;
 
-  logStep(3, 'sending request to Brevo');
+  logStep(3, { sendingRequestToBrevo: true, fileName, attachmentBytes: fileBytes.length });
 
   let brevoRes;
   try {
@@ -145,6 +159,7 @@ Makor Morning News`;
         subject,
         textContent: text,
         htmlContent: html,
+        attachment: [{ name: fileName, content: attachmentBase64 }],
       }),
     });
   } catch (e) {

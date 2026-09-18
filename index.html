@@ -3969,6 +3969,22 @@ function buildMergeUploadBody(filesForServer){
   return out;
 }
 
+// Same binary-not-base64 wire format as buildMergeUploadBody() above, for
+// sending a single already-merged PPTX bundle to api/send-onepagers-email.js
+// as an email attachment: a 4-byte big-endian manifest length, the JSON
+// manifest ({dateLabel, fileName, length}), then the file's raw bytes. A
+// merged bundle can be several MB — base64-in-JSON would risk the exact
+// FUNCTION_PAYLOAD_TOO_LARGE failure already hit (and fixed) on the merge
+// endpoint itself.
+function buildEmailAttachmentUploadBody({ dateLabel, fileName, bytes }){
+  const manifestBytes = new TextEncoder().encode(JSON.stringify({ dateLabel, fileName, length: bytes.length }));
+  const out = new Uint8Array(4 + manifestBytes.length + bytes.length);
+  new DataView(out.buffer).setUint32(0, manifestBytes.length, false);
+  out.set(manifestBytes, 4);
+  out.set(bytes, 4 + manifestBytes.length);
+  return out;
+}
+
 function splitIntoChunks(str, size){
   const chunks = [];
   for(let i=0;i<str.length;i+=size) chunks.push(str.slice(i, i+size));
@@ -4829,23 +4845,41 @@ async function sendOnePagersEmail(){
     return;
   }
 
-  const dateLabel = formatPresentationDateEnglish(week.presentationDate);
-  const companyNames = currentWithFile.map(it=>it.name);
-  const publicUrl = onePagersPublicUrl(week.id, week.onePagerPublicToken);
+  const dateLabel = formatPresentationDateFR(week.presentationDate);
+  const companyCount = currentWithFile.length;
 
-  if(!confirm(`Envoyer les ${companyNames.length} One-Pager(s) aux deux maîtres de stage ?\n\nDate de présentation : ${dateLabel}`)) return;
+  if(!confirm(`Envoyer les ${companyCount} One-Pager(s) aux deux maîtres de stage ?\n\nDate de présentation : ${dateLabel}`)) return;
 
   onePagersEmailInFlight = true;
   const btn = document.getElementById('sendOnePagersEmailBtn');
   if(btn){ btn.disabled = true; btn.textContent = '⏳ Envoi en cours...'; }
   const progress = openProgressPanel('Envoi aux maîtres de stage');
-  progress.update({ step: 'Envoi vers le service d\'email...' }); // single network call — not measurable, stays indeterminate
 
   try{
+    // The attachment IS the bundle "Regrouper les One-Pagers" already
+    // generated and saved (bundle.id/generatedAt) — fetched via the exact
+    // same chunk-reconstruction path the public page and the old download
+    // button used, never re-merged here, so the mailed file is guaranteed
+    // byte-for-byte identical to what "Regrouper" produced.
+    progress.update({ step: 'Récupération du PPTX regroupé...' });
+    const bytes = await fetchOnePagerBytes({ id: bundle.id, uploadedAt: bundle.generatedAt });
+    if(!bytes){
+      progress.error({ message: 'Impossible de récupérer le PPTX regroupé — réessaie, ou régénère-le via "Regrouper les One-Pagers".', onRetry: sendOnePagersEmail });
+      return;
+    }
+
+    const fileName = onePagerGroupFileName(week);
+    progress.update({ step: 'Envoi vers le service d\'email...' }); // single network call — not measurable, stays indeterminate
+    // ponytail: raw binary (see buildEmailAttachmentUploadBody), same as the
+    // merge endpoint — but this is still one request carrying the whole
+    // bundle, capped by Vercel's inbound function payload limit (~4.5MB in
+    // practice, per the merge-pptx incident this mirrors). Fine for today's
+    // real bundle sizes; if a week's One-Pagers ever grow past that, the fix
+    // is a chunked/multi-request upload here, not a leaner encoding.
     const res = await fetch('/api/send-onepagers-email', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ dateLabel, companyNames, publicUrl }),
+      headers: { 'Content-Type': 'application/octet-stream' },
+      body: buildEmailAttachmentUploadBody({ dateLabel, fileName, bytes }),
     });
     // The HTTP status alone was never enough — the server can answer 200
     // with a body that still says ok:false in principle, and a 2xx here
