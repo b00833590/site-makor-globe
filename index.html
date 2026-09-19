@@ -602,6 +602,21 @@
     box-shadow:0 2px 10px rgba(0,0,0,.15);display:none;
   }
   .update-banner.show{display:block;}
+  /* Persistent (not auto-dismissing) failed-write indicator — see
+     retryableWrite(). A transient sync failure used to vanish after one
+     easy-to-miss toast (and every failure AFTER the first was silently
+     swallowed); this stays on screen, with a manual retry, until every
+     pending write actually reaches Firestore. */
+  .sync-failure-banner{
+    position:fixed;top:0;left:0;right:0;z-index:301;background:#c0392b;color:#fff;
+    text-align:center;padding:9px 12px;font-size:13px;font-weight:600;
+    box-shadow:0 2px 10px rgba(0,0,0,.15);display:none;align-items:center;justify-content:center;gap:10px;
+  }
+  .sync-failure-banner.show{display:flex;}
+  .sync-failure-banner button{
+    background:#fff;color:#c0392b;border:none;border-radius:6px;padding:4px 10px;
+    font-size:12px;font-weight:700;cursor:pointer;
+  }
   .loading{padding:60px;text-align:center;color:var(--muted);}
   .edit-note{font-size:11px;color:var(--muted);margin-top:4px;}
   ::-webkit-scrollbar{height:6px;}
@@ -640,6 +655,10 @@
 
 <div id="modalRoot"></div>
 <div class="update-banner" id="updateBanner" title="Cliquer pour recharger">🔄 Nouvelle version du site disponible — clique ici pour recharger la page</div>
+<div class="sync-failure-banner" id="syncFailureBanner">
+  <span class="sync-failure-text"></span>
+  <button type="button" id="syncFailureRetryBtn">Réessayer maintenant</button>
+</div>
 <div class="toast" id="toast"></div>
 <div id="progressRoot"></div>
 <!-- Editor toolbar element, structurally separate from every editable field
@@ -963,6 +982,62 @@ function warnConnectionIssue(msg){
   showToast(msg);
 }
 
+// Root-cause fix for the Morning News <-> Globe "sync bug": a failed
+// Firestore write (quota, network blip, transient contention...) used to be
+// swallowed after ONE dismissible toast — DB[key] kept the optimistic local
+// edit forever, the toast disappeared in 2s, and warnConnectionIssue's
+// dedupe meant every failure AFTER the first produced no feedback at all.
+// The user (and Globe, which only ever reads confirmed server data) had no
+// way to know the edit was never actually saved.
+//
+// retryableWrite() is the one place every write path (rawSet, rawDelete,
+// commitFieldEdit) now goes through: it retries automatically with backoff,
+// and keeps a durable, non-auto-dismissing banner up (with a manual retry
+// button) for as long as ANY write is still unsynced — instead of a fire-
+// and-forget toast that could quietly stop meaning anything.
+const pendingSyncFailures = new Map(); // key -> retry function
+
+function updateSyncFailureBanner(){
+  const el = document.getElementById('syncFailureBanner');
+  if(!el) return;
+  const n = pendingSyncFailures.size;
+  if(n === 0){ el.classList.remove('show'); return; }
+  el.querySelector('.sync-failure-text').textContent = n === 1
+    ? '⚠️ 1 modification non sauvegardée — nouvelle tentative automatique...'
+    : `⚠️ ${n} modifications non sauvegardées — nouvelle tentative automatique...`;
+  el.classList.add('show');
+}
+
+function retryAllPendingSyncFailures(){
+  Array.from(pendingSyncFailures.values()).forEach(retry => retry());
+}
+
+function retryableWrite(key, writeFn, failMsg){
+  const attempt = () => writeFn().then(() => {
+    pendingSyncFailures.delete(key);
+    connectionWarningShown = false;
+    updateSyncFailureBanner();
+  }).catch(e => {
+    console.error('sync failed', key, e);
+    warnConnectionIssue(failMsg);
+    pendingSyncFailures.set(key, attempt);
+    updateSyncFailureBanner();
+    setTimeout(() => { if(pendingSyncFailures.get(key) === attempt) attempt(); }, 6000 + Math.random()*4000);
+  });
+  return attempt();
+}
+
+document.getElementById('syncFailureRetryBtn').addEventListener('click', retryAllPendingSyncFailures);
+// Don't let the user close/reload the tab thinking everything is saved when
+// it demonstrably isn't yet — this is exactly the state that produced the
+// original "Globe never got my edit" bug report.
+window.addEventListener('beforeunload', (e) => {
+  if(pendingSyncFailures.size > 0){
+    e.preventDefault();
+    e.returnValue = '';
+  }
+});
+
 // Posts an action to the backend and retries a couple of times before giving
 // up. Two distinct failure modes are both treated as retriable here:
 // 1) the fetch itself throws (network blip) — the original reason this existed.
@@ -1024,14 +1099,10 @@ async function firestoreDelete(key, retries = 2, delayMs = 900){
 }
 
 async function rawSet(key, obj){
-  try{
+  return retryableWrite(key, async () => {
     await firestoreSet(key, JSON.stringify(obj));
-    connectionWarningShown = false;
     scheduleCacheSync();
-  }catch(e){
-    console.error('sync failed', e);
-    warnConnectionIssue('⚠️ Sauvegarde en ligne échouée — vérifie ta connexion');
-  }
+  }, '⚠️ Sauvegarde en ligne échouée — nouvelle tentative automatique...');
 }
 
 // Awaited, silent version — used for sequential bulk writes (e.g. seeding many
@@ -1052,14 +1123,10 @@ async function rawAppendAwaited(key, obj){
 }
 
 async function rawDelete(key){
-  try{
+  return retryableWrite('del:'+key, async () => {
     await firestoreDelete(key);
-    connectionWarningShown = false;
     scheduleCacheSync();
-  }catch(e){
-    console.error('sync failed', e);
-    warnConnectionIssue('⚠️ Suppression en ligne échouée — vérifie ta connexion');
-  }
+  }, '⚠️ Suppression en ligne échouée — nouvelle tentative automatique...');
 }
 
 // Used ONLY by the background live-quote refresh (refreshPortfolioQuotesOnce /
@@ -1189,32 +1256,26 @@ function commitFieldEdit(key, apply){
   const isPortfolio = key.indexOf('mkg:portfolio:') === 0;
   const docRef = fsdb.collection(collectionForKey(key)).doc(key);
   const prevInQueue = commitEditQueues.get(key) || Promise.resolve();
-  const thisWrite = prevInQueue.then(async () => {
-    try{
-      let merged = null;
-      await fsdb.runTransaction(async (transaction) => {
-        const snap = await transaction.get(docRef);
-        let server = null;
-        let existingGen = 0;
-        if(snap.exists){
-          const data = snap.data();
-          try{ server = JSON.parse(data.value); }catch(e){ /* corrupt row on server, fall back to local */ }
-          existingGen = data.gen || 0;
-        }
-        merged = server ? { ...server } : { ...local };
-        apply(merged); // re-apply the SAME change on top of whichever copy is current when this attempt runs
-        const payload = { value: JSON.stringify(merged), updatedAt: firebase.firestore.FieldValue.serverTimestamp() };
-        if(isPortfolio) payload.gen = existingGen + 1; // same convention as firestoreSet()/nextPortfolioGen()
-        transaction.set(docRef, payload);
-      });
-      DB[key] = merged; // this tab now matches the freshest data + our own edit
-      connectionWarningShown = false;
-      scheduleCacheSync();
-    }catch(e){
-      console.error('sync failed', e);
-      warnConnectionIssue('⚠️ Sauvegarde en ligne échouée — vérifie ta connexion');
-    }
-  });
+  const thisWrite = prevInQueue.then(() => retryableWrite(key, async () => {
+    let merged = null;
+    await fsdb.runTransaction(async (transaction) => {
+      const snap = await transaction.get(docRef);
+      let server = null;
+      let existingGen = 0;
+      if(snap.exists){
+        const data = snap.data();
+        try{ server = JSON.parse(data.value); }catch(e){ /* corrupt row on server, fall back to local */ }
+        existingGen = data.gen || 0;
+      }
+      merged = server ? { ...server } : { ...local };
+      apply(merged); // re-apply the SAME change on top of whichever copy is current when this attempt (or retry) runs
+      const payload = { value: JSON.stringify(merged), updatedAt: firebase.firestore.FieldValue.serverTimestamp() };
+      if(isPortfolio) payload.gen = existingGen + 1; // same convention as firestoreSet()/nextPortfolioGen()
+      transaction.set(docRef, payload);
+    });
+    DB[key] = merged; // this tab now matches the freshest data + our own edit
+    scheduleCacheSync();
+  }, '⚠️ Sauvegarde en ligne échouée — nouvelle tentative automatique...'));
   commitEditQueues.set(key, thisWrite);
   return thisWrite;
 }
